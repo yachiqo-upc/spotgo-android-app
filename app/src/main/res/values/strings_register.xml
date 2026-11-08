@@ -10,4 +10,15 @@
     <string name="register_password_placeholder">At least 8 characters</string>
     <string name="register_terms">I agree to the Terms and Privacy Policy</string>
     <string name="register_existing_account">Already have an account?</string>
+
+    <!-- E-mail verification step of the registration (US13, backend) -->
+    <string name="register_verify_title">Verify your email</string>
+    <string name="register_verify_intro">We sent a 6-digit code to %1$s. Enter it to create your account.</string>
+    <string name="register_verify_demo">Demo mode: your code is %1$s</string>
+    <string name="register_verify_resend">Send a new code</string>
+    <string name="register_verify_back">Edit form</string>
+    <string name="register_sending">Please wait…</string>
+    <string name="register_api_error_title">Couldn\'t reach SpotGo</string>
+    <string name="register_api_error_message">The verification service is not available. Check SPOTGO_API_BASE_URL in local.properties and try again.</string>
+    <string name="register_api_error_tag">Backend unavailable</string>
 </resources>

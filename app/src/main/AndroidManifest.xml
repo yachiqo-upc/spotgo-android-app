@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Needed by the Google Maps SDK and by the backend calls
+         (Pendiente 2 / 3 / 5). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -11,6 +16,12 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.SpotGo">
+        <!-- Google Maps key from SPOTGO_MAPS_API_KEY in local.properties.
+             Empty while the key is not configured (the app then keeps the
+             designed map of mockup 03). -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${SPOTGO_MAPS_API_KEY}" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

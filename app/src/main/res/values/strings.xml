@@ -28,4 +28,60 @@
     <string name="admin_alerts">Alerts</string>
     <string name="admin_more">More</string>
     <string name="feature_placeholder">The next view will appear here.</string>
+    <!-- State bottom sheets (Figma states) -->
+    <string name="state_invalid_login_title">Couldn\'t sign you in</string>
+    <string name="state_invalid_login_message">The email or password is incorrect. Check your details and try again.</string>
+    <string name="state_invalid_login_tag">Invalid login</string>
+    <string name="state_invalid_form_title">Check your information</string>
+    <string name="state_invalid_form_message">Complete the required fields. Use a valid email, phone number and a password of at least 8 characters.</string>
+    <string name="state_invalid_form_tag">Invalid form</string>
+    <string name="state_duplicate_email_title">Email already registered</string>
+    <string name="state_duplicate_email_message">An account already uses this email address. Sign in or use a different email.</string>
+    <string name="state_duplicate_email_tag">Duplicate email</string>
+    <string name="state_session_expired_title">Sign in again</string>
+    <string name="state_session_expired_message">Your session has expired. Sign in to continue securely.</string>
+    <string name="state_session_expired_tag">Session expired</string>
+    <string name="state_action_try_again">Try again</string>
+    <string name="state_action_review_form">Review form</string>
+    <string name="state_action_edit_email">Edit email</string>
+    <string name="state_action_close">Close</string>
+    <!-- Google federated sign-in (simulated, no backend) -->
+    <string name="google_choose_title">Choose an account</string>
+    <string name="google_choose_subtitle">to continue to SpotGo</string>
+    <string name="google_use_another">Use another account</string>
+    <string name="google_demo_unavailable">Demo mode: only %1$s is available.</string>
+    <!-- Google Identity (Pendiente 2 — Credential Manager) -->
+    <string name="google_connecting">Connecting to Google…</string>
+    <string name="google_signin_failed">Google sign-in couldn\'t be completed. Try again.</string>
+    <!-- Forgot password (3-step reset, demo token) -->
+    <string name="forgot_title">Reset your password</string>
+    <string name="forgot_step1_intro">Enter the email registered to your account and we\'ll send you a 6-digit code.</string>
+    <string name="forgot_step2_title">Enter the code</string>
+    <string name="forgot_step2_intro">Type the 6-digit code we sent to %1$s.</string>
+    <string name="forgot_demo_code">Demo mode: your code is %1$s</string>
+    <string name="forgot_step3_title">Create a new password</string>
+    <string name="forgot_step3_intro">Choose a new password for your account. Your other sessions will be signed out.</string>
+    <string name="forgot_send_code">Send code</string>
+    <string name="forgot_token">Code</string>
+    <string name="forgot_token_placeholder">6-digit code</string>
+    <string name="forgot_verify">Verify code</string>
+    <string name="forgot_resend">Send a new code</string>
+    <string name="forgot_change_email">Use a different email</string>
+    <string name="forgot_new_password">New password</string>
+    <string name="forgot_confirm_password">Confirm new password</string>
+    <string name="forgot_update_password">Update password</string>
+    <string name="forgot_back_to_sign_in">Back to sign in</string>
+    <string name="forgot_account_not_found_title">Account not found</string>
+    <string name="forgot_account_not_found_message">No account is registered with that email address. Check the address or create a new account.</string>
+    <string name="forgot_account_not_found_tag">Account not found</string>
+    <string name="forgot_invalid_token_title">Invalid or expired code</string>
+    <string name="forgot_invalid_token_message">The code you entered is incorrect or has expired. Request a new code and try again.</string>
+    <string name="forgot_invalid_token_tag">Invalid code</string>
+    <string name="forgot_password_mismatch_title">Passwords don\'t match</string>
+    <string name="forgot_password_mismatch_message">Retype the same password in both fields and try again.</string>
+    <string name="forgot_password_weak_title">Password too short</string>
+    <string name="forgot_password_weak_message">Use a password of at least 8 characters.</string>
+    <string name="forgot_success_title">Password updated</string>
+    <string name="forgot_success_message">Your password has been changed and your other sessions were signed out. Sign in with your new password.</string>
+    <string name="forgot_success_tag">Password updated</string>
 </resources>
