@@ -27,7 +27,6 @@ import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -53,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -62,8 +62,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.yachiqo.spotgo.R
+import com.yachiqo.spotgo.data.repository.AuthError
+import com.yachiqo.spotgo.data.repository.AuthResult
+import com.yachiqo.spotgo.data.repository.AuthRepository
 import com.yachiqo.spotgo.presentation.common.SpotGoWordmark
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
+import com.yachiqo.spotgo.presentation.common.StateBottomSheet
 import com.yachiqo.spotgo.ui.theme.SpotGoSupportingText
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import kotlinx.coroutines.launch
@@ -73,25 +77,24 @@ import kotlin.math.roundToInt
 @Composable
 fun LoginScreen(
     onOpenDriver: () -> Unit,
-    onOpenParkingAdmin: () -> Unit,
     onCreateAccount: () -> Unit,
+    onForgotPassword: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val email = rememberTextFieldState()
     // Password is temporary UI state and is never persisted in saved instance state.
     val password = remember { TextFieldState() }
     var keepSignedIn by rememberSaveable { mutableStateOf(true) }
+    var authError by remember { mutableStateOf<AuthError?>(null) }
+    var googleSheetVisible by remember { mutableStateOf(false) }
+    // Pendiente 2 — real Google sign-in runs while the account sheet opens.
+    var googleSigningIn by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val pendingMessage = stringResource(R.string.login_action_pending)
-    val showPendingAction: () -> Unit = {
-        focusManager.clearFocus()
-        scope.launch {
-            snackbar.currentSnackbarData?.dismiss()
-            snackbar.showSnackbar(pendingMessage)
-        }
-    }
+    val googleDemoMessage = stringResource(R.string.google_demo_unavailable, AuthRepository.GOOGLE_DEMO_EMAIL)
+    val googleFailedMessage = stringResource(R.string.google_signin_failed)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -191,12 +194,22 @@ fun LoginScreen(
                             Checkbox(checked = keepSignedIn, onCheckedChange = null, modifier = Modifier.size(48.dp))
                             Text(stringResource(R.string.login_remember), style = MaterialTheme.typography.bodyMedium)
                         }
-                        TextButton(onClick = showPendingAction) {
+                        TextButton(onClick = { focusManager.clearFocus(); onForgotPassword() }) {
                             Text(stringResource(R.string.login_forgot_password))
                         }
                     }
                     Button(
-                        onClick = showPendingAction,
+                        onClick = {
+                            focusManager.clearFocus()
+                            when (val result = AuthRepository.sign_in(
+                                email = email.text.toString(),
+                                password = password.text.toString(),
+                                keep_signed_in = keepSignedIn,
+                            )) {
+                                is AuthResult.Success -> onOpenDriver()
+                                is AuthResult.Failure -> authError = result.error
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = RoundedCornerShape(16.dp),
                     ) {
@@ -221,13 +234,52 @@ fun LoginScreen(
                         }
                     }
                     OutlinedButton(
-                        onClick = showPendingAction,
+                        onClick = {
+                            focusManager.clearFocus()
+                            when {
+                                googleSigningIn -> Unit
+                                // Pendiente 2 — real Google Identity when the client id exists.
+                                GoogleIdentity.isConfigured() -> {
+                                    googleSigningIn = true
+                                    scope.launch {
+                                        when (val result = GoogleIdentity.signIn(context)) {
+                                            is GoogleSignInResult.Success -> {
+                                                googleSigningIn = false
+                                                when (
+                                                    val auth = AuthRepository.sign_in_with_google(
+                                                        keep_signed_in = keepSignedIn,
+                                                        email = result.email,
+                                                        display_name = result.display_name,
+                                                        external_subject = GoogleIdentity.subjectOf(result.id_token)
+                                                            .ifBlank { result.id_token },
+                                                    )
+                                                ) {
+                                                    is AuthResult.Success -> onOpenDriver()
+                                                    is AuthResult.Failure -> authError = auth.error
+                                                }
+                                            }
+                                            GoogleSignInResult.Cancelled -> googleSigningIn = false
+                                            GoogleSignInResult.NotConfigured -> {
+                                                googleSigningIn = false
+                                                googleSheetVisible = true
+                                            }
+                                            is GoogleSignInResult.Failed -> {
+                                                googleSigningIn = false
+                                                snackbar.showSnackbar(googleFailedMessage)
+                                            }
+                                        }
+                                    }
+                                }
+                                // No client id yet: simulated chooser of the mockups.
+                                else -> googleSheetVisible = true
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     ) {
                         Text(
-                            stringResource(R.string.login_google),
+                            stringResource(if (googleSigningIn) R.string.google_connecting else R.string.login_google),
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyLarge,
                         )
@@ -235,29 +287,42 @@ fun LoginScreen(
                 }
 
                 Spacer(Modifier.weight(1f))
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        stringResource(R.string.login_preview_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Button(
-                        onClick = { focusManager.clearFocus(); onOpenDriver() },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        shape = RoundedCornerShape(16.dp),
-                    ) { Text(stringResource(R.string.role_driver)) }
-                    OutlinedButton(
-                        onClick = { focusManager.clearFocus(); onOpenParkingAdmin() },
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                    ) { Text(stringResource(R.string.role_parking_admin)) }
-                }
             }
         }
+    }
+
+    if (authError == AuthError.INVALID_CREDENTIALS) {
+        StateBottomSheet(
+            title = stringResource(R.string.state_invalid_login_title),
+            message = stringResource(R.string.state_invalid_login_message),
+            tag = stringResource(R.string.state_invalid_login_tag),
+            primaryText = stringResource(R.string.state_action_try_again),
+            onPrimary = { authError = null },
+            secondaryText = stringResource(R.string.state_action_close),
+            onSecondary = { authError = null },
+            onDismissRequest = { authError = null },
+        )
+    }
+
+    if (googleSheetVisible) {
+        GoogleAccountChooserSheet(
+            accounts = listOf(AuthRepository.GOOGLE_DEMO_EMAIL),
+            onSelectAccount = {
+                googleSheetVisible = false
+                when (val result = AuthRepository.sign_in_with_google(keepSignedIn)) {
+                    is AuthResult.Success -> onOpenDriver()
+                    is AuthResult.Failure -> authError = result.error
+                }
+            },
+            onUseAnotherAccount = {
+                googleSheetVisible = false
+                scope.launch {
+                    snackbar.currentSnackbarData?.dismiss()
+                    snackbar.showSnackbar(googleDemoMessage)
+                }
+            },
+            onDismissRequest = { googleSheetVisible = false },
+        )
     }
 }
 
@@ -289,5 +354,5 @@ internal fun loginFieldColors() = OutlinedTextFieldDefaults.colors(
 @Preview(name = "Login · Compact", widthDp = 360, heightDp = 800, showBackground = true)
 @Composable
 private fun LoginPreview() {
-    SpotGoTheme { LoginScreen(onOpenDriver = {}, onOpenParkingAdmin = {}, onCreateAccount = {}) }
+    SpotGoTheme { LoginScreen(onOpenDriver = {}, onCreateAccount = {}, onForgotPassword = {}) }
 }
