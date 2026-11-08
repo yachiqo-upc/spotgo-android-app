@@ -1,4 +1,4 @@
-package com.yachiqo.spotgo
+package com.yachiqo.spotgo.data
 
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
@@ -9,13 +9,25 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.platform.app.InstrumentationRegistry
+import com.yachiqo.spotgo.MainActivity
+import com.yachiqo.spotgo.data.repository.AuthRepository
 import java.io.File
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 
 class RegisterIntegrationTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
+
+    // Every test starts from the seed accounts of SpotGoDatabase.
+    private val database = DatabaseSnapshot()
+
+    @After
+    fun restoreDatabase() {
+        AuthRepository.sign_out()
+        database.restore()
+    }
 
     @Test
     fun registerStartsEmptyAndReturnsToLoginThroughBothControls() {
@@ -64,45 +76,51 @@ class RegisterIntegrationTest {
     }
 
     @Test
-    fun pendingRegistrationPreservesTheScreenAndBothWorkspacesRemainReachable() {
+    fun registrationValidatesTheFormAndVerifiesTheEmailBeforeSignIn() {
         openRegister()
+        // Empty form: the invalid-form state explains what is missing.
         compose.onNodeWithText("Create account").performScrollTo().performClick()
-        compose.onNodeWithText("This action will be available in a future sprint.").assertIsDisplayed()
-        field("Email").performScrollTo().assert(emptyField())
+        compose.waitForText("Check your information")
+        capture("02-register-invalid")
+        compose.onNodeWithText("Review form").performClick()
+        compose.onNodeWithText("Check your information").assertDoesNotExist()
+
+        field("First name").performTextInput("Prueba")
+        field("Last name").performScrollTo().performTextInput("Conductor")
+        field("Phone").performScrollTo().performTextInput("987654321")
+        field("Email").performScrollTo().performTextInput("qa.driver@example.com")
+        field("Password").performScrollTo().performTextInput("SpotGo2026")
+        closeSoftKeyboard()
+        compose.onNodeWithText("I agree to the Terms and Privacy Policy").performScrollTo().performClick()
+        compose.onNodeWithText("Create account").performScrollTo().performClick()
+
+        // US13 — the account only exists after the e-mail code, and the demo
+        // mode shows the code because there is no backend to e-mail it.
+        compose.waitForText("Verify your email")
+        compose.onNode(hasText("Demo mode: your code is", substring = true)).assertIsDisplayed()
+        capture("02-register-verify")
+
+        // "Edit form" keeps everything typed so far.
+        compose.onNodeWithText("Edit form").performScrollTo().performClick()
+        compose.waitForText("Create your Driver account")
+        field("First name").performScrollTo().assertTextContains("Prueba")
+        field("Last name").performScrollTo().assertTextContains("Conductor")
+        field("Phone").performScrollTo().assertTextContains("987654321")
+        field("Email").performScrollTo().assertTextContains("qa.driver@example.com")
+
         compose.onNodeWithText("Sign in").performScrollTo().performClick()
-        compose.onNodeWithText("Driver").performScrollTo().performClick()
-        compose.onNodeWithText("Find parking nearby").assertIsDisplayed()
+        compose.waitForText("Welcome back")
+
+        compose.signIn()
         compose.onNode(hasText("Profile") and isSelectable()).performClick()
+        compose.onNodeWithText("Briguite Carhuaz").assertIsDisplayed()
         compose.onNodeWithText("Sign out").performScrollTo().performClick()
-        compose.onNodeWithText("Parking Admin").performScrollTo().performClick()
-        compose.onNodeWithText("Administrator dashboard").assertIsDisplayed()
-        compose.onNode(hasText("More") and isSelectable()).performClick()
-        compose.onNodeWithText("Parking infrastructure").performClick()
-        compose.onNodeWithText("Floor plans, spots and sensor configuration").assertIsDisplayed()
-        pressBack()
-        pressBack()
-        compose.onNodeWithText("Welcome back").assertIsDisplayed()
+        compose.waitForText("Welcome back")
     }
 
     private fun openRegister() {
         compose.onNodeWithText("Create account").performScrollTo().performClick()
         compose.onNodeWithText("Create your Driver account").assertIsDisplayed()
-    }
-
-    @Test
-    fun everyAdminAccountButtonReturnsToLoginAndResetsTheWorkspace() {
-        listOf("Dashboard", "Occupancy", "Alerts", "Parking infrastructure").forEach { screen ->
-            compose.onNodeWithText("Parking Admin").performScrollTo().performClick()
-            compose.onNodeWithText("Administrator dashboard").assertIsDisplayed()
-            if (screen == "Parking infrastructure") {
-                compose.onNode(hasText("More") and isSelectable()).performClick()
-                compose.onNodeWithText(screen).performClick()
-            } else {
-                compose.onNode(hasText(screen) and isSelectable()).performClick()
-            }
-            compose.onNodeWithContentDescription("Administrator account").performClick()
-            compose.onNodeWithText("Welcome back").assertIsDisplayed()
-        }
     }
 
     private fun field(label: String) = compose.onNode(hasSetTextAction() and hasText(label))

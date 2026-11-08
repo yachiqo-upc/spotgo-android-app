@@ -16,6 +16,9 @@
     <string name="confirmation_entry_hint">Show this QR at the entrance.</string>
     <string name="confirmation_entry_booking">Booking #SG-4821</string>
     <string name="confirmation_qr_description">Sample entry pass for booking SG-4821</string>
+    <string name="confirmation_booking_dynamic">#%1$s</string>
+    <string name="confirmation_entry_booking_dynamic">Booking #%1$s</string>
+    <string name="confirmation_qr_dynamic">Sample entry pass for booking %1$s</string>
     <string name="confirmation_open_navigation">Open navigation</string>
     <string name="confirmation_my_reservations">My reservations</string>
 </resources>

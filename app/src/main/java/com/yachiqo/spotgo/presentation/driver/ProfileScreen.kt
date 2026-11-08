@@ -13,11 +13,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yachiqo.spotgo.R
+import com.yachiqo.spotgo.data.repository.VehicleRepository
 import com.yachiqo.spotgo.presentation.driver.components.*
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 
 @Composable
-fun ProfileScreen(onSignOut: () -> Unit, onUnavailableAction: () -> Unit) {
+fun ProfileScreen(
+    onSignOut: () -> Unit,
+    onMyVehicles: () -> Unit,
+    onPlans: () -> Unit,
+    onUnavailableAction: () -> Unit,
+) {
     DriverPage(stringResource(R.string.driver_profile), stringResource(R.string.profile_subtitle),
         onProfile = onUnavailableAction) {
         DriverPanel(outlined = true) {
@@ -35,9 +41,16 @@ fun ProfileScreen(onSignOut: () -> Unit, onUnavailableAction: () -> Unit) {
         DriverSectionTitle(stringResource(R.string.profile_account))
         DriverPanel {
             ProfileRow(stringResource(R.string.profile_personal_information), stringResource(R.string.profile_phone), onUnavailableAction)
-            ProfileRow(stringResource(R.string.profile_vehicles), stringResource(R.string.profile_vehicles_summary), onUnavailableAction)
+            ProfileRow(
+                stringResource(R.string.profile_vehicles),
+                stringResource(
+                    R.string.profile_vehicles_summary,
+                    VehicleRepository.vehicles_for_current_profile().size,
+                ),
+                onMyVehicles,
+            )
             ProfileRow(stringResource(R.string.profile_language), stringResource(R.string.profile_language_value), onUnavailableAction)
-            ProfileRow(stringResource(R.string.profile_subscription), stringResource(R.string.profile_subscription_summary), onUnavailableAction)
+            ProfileRow(stringResource(R.string.profile_subscription), stringResource(R.string.profile_subscription_summary), onPlans)
             ProfileRow(stringResource(R.string.profile_permitted_zones), stringResource(R.string.profile_zones_summary), onUnavailableAction)
         }
         DriverOutlineButton(stringResource(R.string.profile_sign_out), onSignOut, color = Color(0xFFFF4D5A))
@@ -58,5 +71,5 @@ private fun ProfileRow(title: String, subtitle: String, onClick: () -> Unit) {
 @Preview(widthDp = 412, heightDp = 915)
 @Composable
 private fun ProfilePreview() {
-    SpotGoTheme { ProfileScreen({}, {}) }
+    SpotGoTheme { ProfileScreen({}, {}, {}, {}) }
 }

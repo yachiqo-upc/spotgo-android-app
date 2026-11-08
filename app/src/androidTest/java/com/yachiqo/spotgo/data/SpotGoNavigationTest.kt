@@ -1,9 +1,12 @@
-package com.yachiqo.spotgo
+package com.yachiqo.spotgo.data
 
 import android.graphics.Bitmap
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasSetTextAction
@@ -16,15 +19,27 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.espresso.Espresso.pressBack
 import androidx.test.platform.app.InstrumentationRegistry
+import com.yachiqo.spotgo.MainActivity
+import com.yachiqo.spotgo.data.repository.AuthRepository
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 
 class SpotGoNavigationTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
+
+    // Every test starts from the seed data of SpotGoDatabase.
+    private val database = DatabaseSnapshot()
+
+    @After
+    fun restoreDatabase() {
+        AuthRepository.sign_out()
+        database.restore()
+    }
 
     @Test
     fun loginShowsPlaceholdersAndCanClearPassword() {
@@ -36,8 +51,8 @@ class SpotGoNavigationTest {
     }
 
     @Test
-    fun driverTabsAndSystemBackWorkWithoutCredentials() {
-        compose.onNodeWithText("Driver").performScrollTo().performClick()
+    fun driverTabsAndSystemBackWorkAfterSignIn() {
+        compose.signIn()
         compose.onNodeWithText("Reservations").performClick()
         compose.onNodeWithText("My reservations").assertIsDisplayed()
         compose.onNode(hasText("Reservations") and isSelectable()).assertIsSelected()
@@ -46,18 +61,8 @@ class SpotGoNavigationTest {
     }
 
     @Test
-    fun adminTabsAndBackToLoginWorkWithoutCredentials() {
-        compose.onNodeWithText("Parking Admin").performScrollTo().performClick()
-        compose.onNodeWithText("Alerts").performClick()
-        compose.onNodeWithText("Operational alerts").assertIsDisplayed()
-        compose.onNode(hasText("Alerts") and isSelectable()).assertIsSelected()
-        pressBack()
-        compose.onNodeWithText("Welcome back").assertIsDisplayed()
-    }
-
-    @Test
-    fun roleAndSelectedTabSurviveActivityRecreation() {
-        compose.onNodeWithText("Driver").performScrollTo().performClick()
+    fun signedInTabAndProfileSurviveActivityRecreation() {
+        compose.signIn()
         compose.onNode(hasText("Profile") and isSelectable()).performClick()
         compose.activityRule.scenario.recreate()
         compose.onAllNodesWithText("Profile").assertCountEquals(2)
@@ -69,26 +74,63 @@ class SpotGoNavigationTest {
 
     @Test
     fun driverScreensAreReachableAndSignOutReturnsToLogin() {
-        openDriver()
-        compose.onNodeWithText("Find parking nearby").assertIsDisplayed()
+        compose.signIn()
         captureScreenshot("03-explore")
         compose.onNodeWithText("View parking").performScrollTo().assertIsDisplayed()
         captureScreenshot("03-explore-card")
         compose.onNodeWithText("View parking").performClick()
         compose.onNodeWithText("Zone details").assertIsDisplayed()
         captureScreenshot("04-zone")
-        compose.onNodeWithText("Continue").performScrollTo().assertIsDisplayed()
-        captureScreenshot("04-zone-form")
-        compose.onNodeWithText("Continue").performClick()
-        compose.onNodeWithText("Reservation confirmed").assertIsDisplayed()
-        compose.onNodeWithText("#SG-4821").assertIsDisplayed()
+
+        // US19 scenario 6 — the seeded unpaid balance blocks new reservations.
+        compose.onNodeWithText("Continue").performScrollTo().performClick()
+        compose.waitForText("Outstanding balance")
+        captureScreenshot("04-zone-blocked")
+        compose.onNodeWithText("Close").performClick()
+        compose.onNodeWithText("Zone details").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back to Explore").performClick()
+        compose.onNodeWithText("Find parking nearby").assertIsDisplayed()
+
+        // Mockup 08 — the balance card shows the seeded amount as pending.
+        compose.onNode(hasText("Payments") and isSelectable()).performClick()
+        compose.onNodeWithText("S/ 8.00").assertIsDisplayed()
+        compose.onNodeWithText("Pending").assertIsDisplayed()
+        captureScreenshot("08-payments")
+        compose.onNodeWithText("S/ 8.00").performClick()
+
+        // Mockup 38 — retry the failed charge (1.5 s approval).
+        compose.onNodeWithText("Retry payment").assertIsDisplayed()
+        captureScreenshot("38-balance")
+        compose.onNodeWithText("Retry payment").performClick()
+        compose.waitForText("S/ 0.00")
+        compose.onNodeWithText("Up to date").assertIsDisplayed()
+        compose.waitForText("Additional charge paid")
+        compose.waitUntilGone("Additional charge paid")
+
+        // US18 — reserve flow once the balance is settled.
+        compose.onNode(hasText("Explore") and isSelectable()).performClick()
+        compose.onNodeWithText("View parking").performScrollTo().performClick()
+        compose.onNodeWithText("Zone details").assertIsDisplayed()
+        compose.onNodeWithText("Continue").performScrollTo().performClick()
+        compose.waitForText("Select an available spot")
+        // The sheet's "Continue" shares its label with the zone form button
+        // and stays disabled until a spot is chosen.
+        spotSheetContinue().assertIsNotEnabled()
+        compose.onNodeWithText("B-10").performClick()
+        spotSheetContinue().performClick()
+        compose.waitForText("Review & pay")
+        captureScreenshot("04-review")
+        compose.onNodeWithText("Confirm payment").performClick()
+        compose.onNode(hasText("Processing payment", substring = true)).assertIsDisplayed()
+        compose.waitForText("Reservation confirmed")
+        compose.onNodeWithText("Payment successful").assertIsDisplayed()
+        compose.onNodeWithText("Booking code").assertIsDisplayed()
         captureScreenshot("05-confirmed")
+
         compose.onNodeWithText("My reservations").performScrollTo().performClick()
         compose.onNodeWithText("My reservations").assertIsDisplayed()
         captureScreenshot("06-reservations")
-        compose.onNode(hasText("Payments") and isSelectable()).performClick()
-        compose.onNodeWithText("S/ 0.00").assertIsDisplayed()
-        captureScreenshot("08-payments")
+
         compose.onNode(hasText("Profile") and isSelectable()).performClick()
         compose.onNodeWithText("Briguite Carhuaz").assertIsDisplayed()
         captureScreenshot("10-profile")
@@ -98,14 +140,16 @@ class SpotGoNavigationTest {
 
     @Test
     fun nestedDriverScreensSurviveRecreationAndBackReturnsToExplore() {
-        openDriver()
+        compose.signIn()
         compose.onNodeWithText("View parking").performScrollTo().performClick()
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("Zone details").assertIsDisplayed()
+        // The reserve form is still blocked by the seeded unpaid balance.
         compose.onNodeWithText("Continue").performScrollTo().performClick()
+        compose.waitForText("Outstanding balance")
+        compose.onNodeWithText("Close").performClick()
+        compose.onNodeWithText("Zone details").assertIsDisplayed()
         compose.activityRule.scenario.recreate()
-        compose.onNodeWithText("Reservation confirmed").assertIsDisplayed()
-        pressBack()
         compose.onNodeWithText("Zone details").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back to Explore").performClick()
         compose.onNodeWithText("Find parking nearby").assertIsDisplayed()
@@ -115,16 +159,20 @@ class SpotGoNavigationTest {
 
     @Test
     fun unfinishedActionsStayWithinTheStaticScreen() {
-        openDriver()
+        compose.signIn()
         compose.onNode(hasText("Payments") and isSelectable()).performClick()
         compose.onNodeWithText("Add payment method").performScrollTo().performClick()
         compose.onNodeWithText("This action is not available yet.").assertIsDisplayed()
         compose.onNode(hasText("Payments") and isSelectable()).assertIsSelected()
     }
 
-    private fun openDriver() {
-        compose.onNodeWithText("Driver").performScrollTo().performClick()
-    }
+    /**
+     * The "Continue" of the spot sheet: it shares its label with the button of
+     * the zone form that stays behind the sheet, so it is scoped by ancestor.
+     */
+    private fun spotSheetContinue() = compose.onNode(
+        hasText("Continue") and hasAnyAncestor(hasAnyDescendant(hasText("Select an available spot")))
+    )
 
     private fun captureScreenshot(name: String) {
         compose.waitForIdle()
