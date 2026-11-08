@@ -1,0 +1,77 @@
+<resources>
+    <!-- Reservation details (mockup 07, US18 / US26) -->
+    <string name="details_title">Reservation details</string>
+    <string name="details_back">Back to reservations</string>
+    <string name="details_booking_code">Booking code</string>
+    <string name="details_status_confirmed">Confirmed reservation</string>
+    <string name="details_status_active">Active reservation</string>
+    <string name="details_status_completed">Completed reservation</string>
+    <string name="details_status_cancelled">Cancelled reservation</string>
+    <string name="details_info_title">Reservation information</string>
+    <string name="details_date">Date</string>
+    <string name="details_time">Time</string>
+    <string name="details_vehicle">Vehicle</string>
+    <string name="details_spot">Spot</string>
+    <string name="details_spot_reserved">Reserved parking spot</string>
+    <string name="details_total">Total</string>
+    <!-- UI-only payment label (the payments table arrives in Part 5 / US19). -->
+    <string name="details_paid_visa">Paid with Visa •••• 4242</string>
+    <string name="details_refunded_visa">Refunded to Visa •••• 4242</string>
+    <string name="details_payment_pending">Payment pending</string>
+    <string name="details_edit">Edit reservation</string>
+    <string name="details_extend">Extend time</string>
+    <string name="details_open_navigation">Open navigation</string>
+    <string name="details_cancel">Cancel reservation</string>
+
+    <!-- Cancel and refund sheet (mockup 07a, US18 scenario 7) -->
+    <string name="cancel_title">Cancel reservation?</string>
+    <string name="cancel_booking_format">Booking %1$s · %2$s</string>
+    <string name="cancel_refund_label">Refund · %1$s</string>
+    <string name="cancel_refund_message">The refund returns to the original payment method. Your spot will be released.</string>
+    <string name="cancel_confirm">Cancel &amp; request refund</string>
+    <string name="cancel_keep">Keep reservation</string>
+
+    <!-- Extend time sheet (mockup 37b, US18 scenario 8) -->
+    <string name="extend_title">Extend your time</string>
+    <string name="extend_current_end">Current end time · %1$s</string>
+    <string name="extend_plus_one">+1 hour · End %1$s</string>
+    <string name="extend_until_midnight">Until midnight · Beyond closing</string>
+    <string name="extend_options_past">No extension available: both options would end before the current time of Peru (America/Lima).</string>
+    <string name="extend_cancel">Cancel</string>
+
+    <!-- Extension payment sheet (mockup 37a, US18 / US19) -->
+    <string name="extend_confirm_title">Confirm your extension</string>
+    <string name="extend_current_range">Current time %1$s</string>
+    <string name="extend_plan_plus_one">+1 hour · New end %1$s</string>
+    <string name="extend_plan_midnight">Until midnight · New end %1$s</string>
+    <string name="extend_prices">%1$s → %2$s   Additional payment %3$s</string>
+    <string name="extend_spot_stays">Spot %1$s stays reserved for you.</string>
+    <string name="extend_pay">Pay %1$s &amp; extend</string>
+    <string name="extend_back">Back</string>
+
+    <!-- Edit reservation (mockup 37, US18 scenario 8) -->
+    <string name="edit_title">Edit reservation</string>
+    <string name="edit_back">Back to reservation details</string>
+    <string name="edit_summary_format">%1$s · %2$s – %3$s · Spot %4$s</string>
+    <string name="edit_current_total">Current total: %1$s</string>
+    <string name="edit_current_spot">Current spot</string>
+    <string name="edit_current_spot_value">%1$s · Reserved for you</string>
+    <string name="edit_extension_positive">Extension: +%1$s hour</string>
+    <string name="edit_extension_positive_plural">Extension: +%1$s hours</string>
+    <string name="edit_extension_negative">Reduction: -%1$s hours</string>
+    <string name="edit_extension_none">No duration change</string>
+    <string name="edit_new_end">New end time %1$s</string>
+    <string name="edit_note">Changes are validated against zone hours and spot availability. The total is recalculated before the update is confirmed.</string>
+    <string name="edit_error_closing">End time is beyond zone closing (%1$s).</string>
+    <string name="edit_error_past_time">The start time already passed (time of Peru). Pick a later slot.</string>
+    <string name="edit_error_spot">The spot is no longer available. Go back and choose another one.</string>
+    <string name="edit_update">Update reservation</string>
+    <string name="edit_hours_format">%1$s hours</string>
+
+    <!-- Notices (US18 / US26 outcomes) -->
+    <string name="notice_reservation_cancelled">Reservation cancelled · refund requested</string>
+    <string name="notice_reservation_extended">Reservation extended · updated receipt generated</string>
+    <string name="notice_reservation_updated">Reservation updated · updated receipt generated</string>
+    <string name="notice_navigation_unavailable">Google Maps is not available on this device.</string>
+    <string name="notice_destination_unavailable">The parking destination is not available.</string>
+</resources>

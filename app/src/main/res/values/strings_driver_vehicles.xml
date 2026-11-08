@@ -1,0 +1,44 @@
+<resources>
+    <!-- My vehicles (US27) -->
+    <string name="vehicles_title">My vehicles</string>
+    <string name="vehicles_info_title">Vehicles linked to your account</string>
+    <string name="vehicles_info_message">Choose a registered vehicle when you reserve a parking space.</string>
+    <string name="vehicles_section">Registered vehicles</string>
+    <string name="vehicles_default_role">Default vehicle</string>
+    <string name="vehicles_secondary_role">Secondary vehicle</string>
+    <string name="vehicles_default_badge">Default</string>
+    <string name="vehicles_row_title">%1$s %2$s · %3$s</string>
+    <string name="vehicles_row_subtitle">%1$s · %2$s</string>
+    <string name="vehicles_add">Add vehicle</string>
+    <string name="vehicles_note_title">Before reserving</string>
+    <string name="vehicles_note_message">At least one vehicle must be registered and linked to your profile.</string>
+    <string name="vehicles_empty">No vehicles registered yet.</string>
+    <!-- Add vehicle (US27) -->
+    <string name="add_vehicle_title">Add vehicle</string>
+    <string name="add_vehicle_details">Vehicle details</string>
+    <string name="add_vehicle_details_subtitle">Use the information shown on your vehicle registration.</string>
+    <string name="add_vehicle_plate">License plate</string>
+    <string name="add_vehicle_make">Brand</string>
+    <string name="add_vehicle_model">Model</string>
+    <string name="add_vehicle_color">Color</string>
+    <string name="add_vehicle_type">Vehicle type</string>
+    <string name="add_vehicle_type_car">Car</string>
+    <string name="add_vehicle_type_suv">SUV</string>
+    <string name="add_vehicle_type_motorcycle">Motorcycle</string>
+    <string name="add_vehicle_plate_hint_title">Peru plate format</string>
+    <string name="add_vehicle_plate_hint_message">Enter the plate exactly as it appears on the vehicle, for example AJK-247.</string>
+    <string name="add_vehicle_save">Save vehicle</string>
+    <!-- Vehicle state bottom sheets (12a / 12b) -->
+    <string name="state_invalid_plate_title">Check the license plate</string>
+    <string name="state_invalid_plate_message">Enter the plate exactly as it appears on the vehicle, for example AJK-247: three characters, a dash and three digits.</string>
+    <string name="state_invalid_plate_tag">Invalid plate</string>
+    <string name="state_duplicate_plate_title">Plate already registered</string>
+    <string name="state_duplicate_plate_message">A vehicle with this plate is already linked to your account. Review the plate or open your registered vehicles.</string>
+    <string name="state_duplicate_plate_tag">Duplicate plate</string>
+    <string name="state_action_review_plate">Review plate</string>
+    <!-- Vehicle detail / remove sheet -->
+    <string name="vehicles_remove">Remove vehicle</string>
+    <string name="vehicles_remove_title">Remove this vehicle</string>
+    <string name="vehicles_remove_message">It will be removed from your account. You can register it again later.</string>
+    <string name="vehicles_added">Added</string>
+</resources>
