@@ -1,7 +1,8 @@
 <resources>
     <string name="zone_title">Zone details</string>
     <string name="zone_back">Back to Explore</string>
-    <string name="zone_map_distance">0.4 km away · San Isidro, Lima</string>
+    <string name="zone_map_distance">%1$s km away · San Isidro, Lima</string>
+    <string name="zone_address_format">%1$s · San Isidro, Lima</string>
     <string name="zone_directions">Directions</string>
     <string name="zone_marker_name">Javier Prado</string>
     <string name="zone_available_count">6</string>
@@ -20,6 +21,7 @@
     <string name="zone_duration_value">2 hours</string>
     <string name="zone_total">Estimated total</string>
     <string name="zone_total_value">S/ 16.00</string>
+    <string name="zone_plan_discount">Plan discount (%1$d%%)</string>
     <string name="zone_continue">Continue</string>
     <string name="zone_dropdown">⌄</string>
 </resources>

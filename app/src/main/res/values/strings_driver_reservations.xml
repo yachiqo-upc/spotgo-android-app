@@ -13,4 +13,8 @@
     <string name="reservations_view_details">View details</string>
     <string name="reservations_before_you_go">Before you go</string>
     <string name="reservations_navigation_hint">Open navigation from your reservation to get directions to the parking zone.</string>
+    <string name="reservations_status_active">Active</string>
+    <!-- Empty state of the list (UI-only; the mockups do not define it). -->
+    <string name="reservations_empty_title">No reservations yet</string>
+    <string name="reservations_empty_hint">Reserve a spot from Explore and it will show up here.</string>
 </resources>

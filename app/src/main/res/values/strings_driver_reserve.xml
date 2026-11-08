@@ -1,0 +1,50 @@
+<resources>
+    <!-- Explore parking (US01 / US25) -->
+    <string name="explore_no_match">No parking zones match your search or filters.</string>
+    <string name="explore_no_spots">No spots available</string>
+    <!-- Reserve flow: spot selector, review &amp; pay (US18) -->
+    <string name="reserve_spot_selector_title">Select an available spot</string>
+    <string name="reserve_spot_selector_hint">Only free spots of this zone are shown.</string>
+    <string name="reserve_spot_none">No spots available</string>
+    <string name="reserve_review_title">Review and pay</string>
+    <string name="reserve_amount">Amount</string>
+    <string name="reserve_pay">Pay %1$s</string>
+    <string name="reserve_processing">Processing payment…</string>
+    <string name="spot_type_standard">Standard</string>
+    <string name="spot_type_accessible">Accessible</string>
+    <!-- Reserve form fields (mockup 04) -->
+    <string name="zone_tomorrow">Tomorrow</string>
+    <string name="reserve_no_vehicle_field">No vehicle registered</string>
+    <string name="duration_1">1 hour</string>
+    <string name="duration_2">2 hours</string>
+    <string name="duration_3">3 hours</string>
+    <string name="duration_4">4 hours</string>
+    <!-- Reservation state bottom sheets (US18) -->
+    <string name="reserve_no_vehicle_title">Register a vehicle first</string>
+    <string name="reserve_no_vehicle_message">You need a registered vehicle linked to your profile before reserving a spot.</string>
+    <string name="reserve_no_vehicle_action">My vehicles</string>
+    <string name="reserve_zone_full_message">This zone has no free spots right now. Check again later or choose another zone.</string>
+    <string name="reserve_vehicle_busy_title">Vehicle already in use</string>
+    <string name="reserve_vehicle_busy_message">This vehicle already has an active reservation. Select another vehicle or wait for the current one to finish.</string>
+    <string name="reserve_spot_taken_title">Spot no longer available</string>
+    <string name="reserve_spot_taken_message">This spot was taken before your reservation was confirmed. Select another alternative.</string>
+    <!-- Past-time validation (user request: Peru / America-Lima clock) -->
+    <string name="reserve_past_time_title">Start time already passed</string>
+    <string name="reserve_past_time_message">SpotGo uses the time of Peru. Pick a date and start time later than the current one.</string>
+    <string name="reserve_past_time_action">Change date</string>
+    <!-- Vehicle selector sheet (mockup 04a) -->
+    <string name="reserve_vehicle_sheet_title">Choose your vehicle</string>
+    <string name="reserve_vehicle_sheet_hint">Your selection stays with this reservation.</string>
+    <string name="reserve_vehicle_selected">Selected vehicle</string>
+    <string name="reserve_add_vehicle">+ Add vehicle</string>
+    <!-- Review &amp; pay sheet (mockup 04b) -->
+    <string name="reserve_review_heading">Review &amp; pay</string>
+    <string name="reserve_review_period">%1$s · %2$s–%3$s</string>
+    <string name="reserve_review_held">%1$s · Spot held temporarily.</string>
+    <string name="reserve_review_requires_approval">Confirmation requires payment approval.</string>
+    <string name="reserve_review_total">Total %1$s</string>
+    <!-- UI-only payment label (the payments table arrives in Part 5 / US19). -->
+    <string name="reserve_review_payment_method">Visa •••• 4242 · PEN</string>
+    <string name="reserve_confirm_payment">Confirm payment</string>
+    <string name="reserve_change_payment_method">Change payment method</string>
+</resources>

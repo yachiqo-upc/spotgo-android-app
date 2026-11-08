@@ -2,11 +2,12 @@
     <string name="explore_title">Find parking nearby</string>
     <string name="explore_search">Search parking zones</string>
     <string name="explore_saved">Saved</string>
-    <string name="explore_last_updated">Last updated · 10:30:00</string>
+    <string name="explore_no_saved">No saved parking yet. Tap the heart of a parking to keep it here.</string>
+    <string name="explore_last_updated">Last updated · %1$s</string>
     <string name="explore_refresh">↻ Refresh</string>
     <string name="explore_walking_distance">You · 4 min walk</string>
-    <string name="explore_parking_distance">0.4 km · Av. Javier Prado Oeste</string>
-    <string name="explore_spots">6 spots</string>
+    <string name="explore_parking_distance">%1$s km · %2$s</string>
+    <string name="explore_spots">%1$d spots</string>
     <string name="explore_view_parking">View parking</string>
     <string name="explore_marker_six">S/ 6</string>
     <string name="explore_marker_seven">S/ 7</string>

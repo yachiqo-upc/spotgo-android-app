@@ -6,7 +6,7 @@
     <string name="profile_personal_information">Personal information</string>
     <string name="profile_phone">+51 999 123 456</string>
     <string name="profile_vehicles">My vehicles</string>
-    <string name="profile_vehicles_summary">2 registered vehicles</string>
+    <string name="profile_vehicles_summary">%1$d registered vehicles</string>
     <string name="profile_language">Language &amp; accessibility</string>
     <string name="profile_language_value">English</string>
     <string name="profile_subscription">Plans &amp; subscription</string>

@@ -1,19 +1,63 @@
 <resources>
+    <!-- Payments tab (mockup 08) -->
     <string name="payments_subtitle">Manage payment methods and parking charges.</string>
     <string name="payments_balance">Outstanding balance</string>
     <string name="payments_balance_value">S/ 0.00</string>
     <string name="payments_up_to_date">Up to date</string>
+    <string name="payments_pending">Pending</string>
     <string name="payments_methods">Payment methods</string>
     <string name="payments_card">Visa •••• 4242</string>
     <string name="payments_card_details">Expires 08/29 · Default</string>
     <string name="payments_add_method">Add payment method</string>
     <string name="payments_transactions">Recent transactions</string>
     <string name="payments_see_all">See all</string>
-    <string name="payments_transaction_today">Today · San Isidro, Lima</string>
-    <string name="payments_transaction_larco">24 Sep · Miraflores, Lima</string>
-    <string name="payments_transaction_larco_price">S/ 12.00</string>
-    <string name="payments_san_borja">San Borja Parking</string>
-    <string name="payments_transaction_san_borja">20 Sep · San Borja, Lima</string>
-    <string name="payments_transaction_san_borja_price">S/ 10.00</string>
     <string name="payments_chevron">›</string>
+    <string name="payments_no_transactions">No transactions yet.</string>
+    <string name="payments_no_receipt">This transaction has no receipt yet.</string>
+
+    <!-- Outstanding balance (mockup 38, US19) -->
+    <string name="balance_title">Outstanding balance</string>
+    <string name="balance_charge_failed">Additional charge failed</string>
+    <string name="balance_pending">Pending</string>
+    <string name="balance_charge_line">Additional charge · %1$s</string>
+    <string name="balance_payment_method">Payment method</string>
+    <string name="balance_change">Change</string>
+    <string name="balance_notice_title">Outstanding balance</string>
+    <string name="balance_notice_message">New reservations are blocked until this balance is paid. Retry or choose another payment method.</string>
+    <string name="balance_retry">Retry payment</string>
+    <string name="balance_choose_other">Choose another payment method</string>
+    <string name="balance_processing">Processing payment…</string>
+    <string name="balance_paid_notice">Additional charge paid</string>
+    <string name="balance_empty">There is no outstanding balance.</string>
+    <string name="balance_select_token">Choose a payment method</string>
+
+    <!-- Receipts &amp; invoices (mockup 14, US21) -->
+    <string name="receipts_title">Receipts &amp; invoices</string>
+    <string name="receipts_heading">Payment documents</string>
+    <string name="receipts_subtitle">Review parking receipts and invoices issued for your account.</string>
+    <string name="receipts_filter_all">All</string>
+    <string name="receipts_filter_receipts">Receipts</string>
+    <string name="receipts_filter_invoices">Invoices</string>
+    <string name="receipts_row_receipt">%1$s · Receipt %2$s</string>
+    <string name="receipts_row_invoice">%1$s · Invoice %2$s</string>
+    <string name="receipts_need_invoice">Need an invoice?</string>
+    <string name="receipts_need_invoice_message">Select a transaction to review its receipt or invoice.</string>
+    <string name="receipts_empty">No documents yet.</string>
+
+    <!-- Receipt / invoice detail (mockup 40, US21) -->
+    <string name="document_title">Receipt / invoice detail</string>
+    <string name="document_download">Download PDF</string>
+    <string name="document_send_email">Send by email</string>
+    <string name="document_downloaded">PDF saved to Downloads/SpotGo</string>
+    <string name="document_emailed">Receipt sent to %1$s</string>
+    <string name="document_adjustments">Adjustments</string>
+    <string name="document_download_failed">The PDF could not be saved.</string>
+    <string name="document_email_failed">The e-mail could not be sent.</string>
+    <string name="document_email_sending">Sending e-mail…</string>
+    <string name="document_email_backend_missing">Sending by e-mail needs the SpotGo backend (SPOTGO_API_BASE_URL is not configured in local.properties yet).</string>
+
+    <!-- Outstanding balance blocks new reservations (US19 scenario 6) -->
+    <string name="reserve_balance_blocked_title">Outstanding balance</string>
+    <string name="reserve_balance_blocked_message">You have an unpaid additional charge, so new reservations are blocked. Pay the balance to keep booking.</string>
+    <string name="reserve_balance_blocked_action">Review balance</string>
 </resources>
