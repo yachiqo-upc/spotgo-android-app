@@ -1,5 +1,6 @@
 package com.yachiqo.spotgo.presentation.driver.components
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.common.SpotGoWordmark
+import com.yachiqo.spotgo.ui.theme.SpotGoError
 
 internal val DriverAvailable = Color(0xFF44E38B)
 internal val DriverAvailableContainer = Color(0xFF18332A)
@@ -117,11 +119,23 @@ internal fun DriverSectionTitle(title: String) {
 
 @Composable
 internal fun FavoriteButton(saved: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier.size(48.dp), shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer) {
+    // Saved state completes the fill: the heart goes from outline to solid
+    // and the circle behind it fills in, so the press is always visible.
+    val tint = animateColorAsState(
+        targetValue = if (saved) SpotGoError else LocalContentColor.current,
+        label = "favoriteTint",
+    ).value
+    val container = animateColorAsState(
+        targetValue = if (saved) SpotGoError.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceContainer,
+        label = "favoriteContainer",
+    ).value
+    Surface(modifier = modifier.size(48.dp), shape = RoundedCornerShape(24.dp), color = container) {
         IconButton(onClick = onClick) {
-            FigmaIcon(R.drawable.ic_favorite,
-                stringResource(if (saved) R.string.driver_remove_saved_parking else R.string.driver_save_parking))
+            FigmaIcon(
+                if (saved) R.drawable.ic_favorite_filled else R.drawable.ic_favorite,
+                stringResource(if (saved) R.string.driver_remove_saved_parking else R.string.driver_save_parking),
+                tint = tint,
+            )
         }
     }
 }

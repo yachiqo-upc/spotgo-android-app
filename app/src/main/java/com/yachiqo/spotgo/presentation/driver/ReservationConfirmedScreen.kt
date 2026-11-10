@@ -1,8 +1,5 @@
 package com.yachiqo.spotgo.presentation.driver
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,13 +93,10 @@ fun ReservationConfirmedScreen(onMyReservations: () -> Unit, onUnavailableAction
         DriverPrimaryButton(
             label = stringResource(R.string.confirmation_open_navigation),
             onClick = {
-                val destination = zone?.location ?: "San Isidro, Lima"
-                val url = "https://www.google.com/maps/search/?api=1&query=" + Uri.encode(destination)
-                try {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                } catch (e: ActivityNotFoundException) {
-                    onUnavailableAction()
-                }
+                context.openMapsTo(
+                    zone?.coordinatesQuery() ?: zone?.location ?: "San Isidro, Lima",
+                    onUnavailableAction,
+                )
             },
         )
         DriverOutlineButton(stringResource(R.string.confirmation_my_reservations), onMyReservations)

@@ -1,8 +1,5 @@
 package com.yachiqo.spotgo.presentation.driver
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -199,19 +196,8 @@ fun ReservationDetailsScreen(
             }
             if (isUpcoming || isActive) {
                 DriverPrimaryButton(stringResource(R.string.details_open_navigation), onClick = {
-                    // US26 — external navigation: geo intent, web fallback, then inform.
-                    val destination = zone.location
-                    val encoded = Uri.encode(destination)
-                    val geo = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$encoded"))
-                    val web = Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://www.google.com/maps/search/?api=1&query=$encoded"))
-                    try {
-                        try {
-                            context.startActivity(geo)
-                        } catch (missingMaps: ActivityNotFoundException) {
-                            context.startActivity(web)
-                        }
-                    } catch (missingBrowser: ActivityNotFoundException) {
+                    // US26 — external navigation: parking coordinates first, address as fallback.
+                    context.openParkingNavigation(zone) {
                         onNotice(context.getString(R.string.notice_navigation_unavailable))
                     }
                 })
