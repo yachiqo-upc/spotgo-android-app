@@ -61,7 +61,7 @@ fun ExploreParkingScreen(onOpenZone: (String) -> Unit, onProfile: () -> Unit, on
         }
         matchesQuery && matchesFilter
     }
-    val selectedZone = zones.firstOrNull { it.zone_id == selectedZoneId } ?: zones.firstOrNull()
+    val selectedZone = allZones.firstOrNull { it.zone_id == selectedZoneId } ?: zones.firstOrNull()
 
     DriverPage(stringResource(R.string.explore_title), stringResource(R.string.driver_location), onProfile, prominentTitle = true) {
         SearchBar(
@@ -121,7 +121,7 @@ private fun ExploreMap(
             if (googleMapsConfigured()) {
                 // Pendiente 2 — real Google map (SPOTGO_MAPS_API_KEY).
                 Box(Modifier.fillMaxWidth().height(349.dp * scale)) {
-                    GoogleMapView(zones, selectedZone?.zone_id, onSelectZone, Modifier.matchParentSize())
+                    GoogleMapView(allZones, selectedZone?.zone_id, onSelectZone, Modifier.matchParentSize())
                     LastUpdatedBar(lastUpdated, onRefresh)
                 }
             } else {
