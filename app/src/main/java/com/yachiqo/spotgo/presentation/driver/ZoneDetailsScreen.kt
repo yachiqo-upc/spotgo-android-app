@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -390,6 +391,7 @@ internal fun PickerField(
 
 @Composable
 private fun ZoneMap(zone: ParkingZone, onUnavailableAction: () -> Unit) {
+    val context = LocalContext.current
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = DriverMapBackground,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
         BoxWithConstraints(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))) {
@@ -415,7 +417,8 @@ private fun ZoneMap(zone: ParkingZone, onUnavailableAction: () -> Unit) {
                     Row(Modifier.padding(start = 10.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.zone_map_distance, zone.distance_km.toString()),
                             Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = onUnavailableAction, contentPadding = PaddingValues(horizontal = 10.dp)) {
+                        TextButton(onClick = { context.openParkingNavigation(zone, onUnavailableAction) },
+                            contentPadding = PaddingValues(horizontal = 10.dp)) {
                             Text(stringResource(R.string.zone_directions), style = MaterialTheme.typography.bodySmall)
                         }
                     }
