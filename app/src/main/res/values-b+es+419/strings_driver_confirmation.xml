@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="confirmation_title">Confirmación de reserva</string>
+    <string name="confirmation_success">Pago aprobado</string>
+    <string name="confirmation_check">✓</string>
+    <string name="confirmation_payment_pending">Pago sin confirmar</string>
+    <string name="confirmation_payment_status">Estado del backend: %1$s</string>
+    <string name="confirmation_load_error">No se pudieron cargar los detalles de la reserva desde SpotGo.</string>
+    <string name="confirmation_booking_code">ID de reserva</string>
+    <string name="confirmation_parking_zone">Zona de estacionamiento</string>
+    <string name="confirmation_spot">Espacio</string>
+    <string name="confirmation_spot_value">Espacio no disponible</string>
+    <string name="confirmation_vehicle_value">Vehículo no disponible</string>
+    <string name="confirmation_time">Horario</string>
+    <string name="confirmation_booking_dynamic">N.º %1$s</string>
+    <string name="confirmation_qr_dynamic">Pase informativo de ingreso para la reserva %1$s</string>
+    <string name="confirmation_amount_paid">Importe de la reserva</string>
+    <string name="confirmation_informational_pass">Referencia informativa de la reserva</string>
+    <string name="confirmation_no_qr_available">El backend todavía no ofrece un pase de ingreso escaneable.</string>
+    <string name="confirmation_open_navigation">Abrir navegación</string>
+    <string name="confirmation_my_reservations">Mis reservas</string>
+</resources>

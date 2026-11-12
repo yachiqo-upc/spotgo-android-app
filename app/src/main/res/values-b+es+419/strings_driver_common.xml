@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="driver_open_profile">Abrir perfil</string>
+    <string name="driver_action_unavailable">Esta acción todavía no está disponible.</string>
+    <string name="driver_parking_name">Javier Prado Parking</string>
+    <string name="driver_location">San Isidro, Lima</string>
+    <string name="driver_address">Av. Javier Prado Oeste · San Isidro, Lima</string>
+    <string name="driver_hourly_price">S/ 8.00</string>
+    <string name="driver_per_hour">por hora</string>
+    <string name="driver_available">Disponible</string>
+    <string name="driver_covered">Techado</string>
+    <string name="driver_ev">Vehículo eléctrico</string>
+    <string name="driver_save_parking">Guardar estacionamiento</string>
+    <string name="driver_remove_saved_parking">Quitar de guardados</string>
+    <string name="driver_map_description">Mapa estático del estacionamiento de San Isidro</string>
+    <string name="driver_map_district">SAN ISIDRO</string>
+    <string name="driver_map_green_area">ÁREA\nVERDE</string>
+    <string name="driver_map_main_avenue">AV. JAVIER PRADO</string>
+    <string name="driver_map_west_avenue">AV. AREQUIPA</string>
+    <string name="driver_map_east_avenue">LAS BEGONIAS</string>
+    <string name="driver_map_street">CANAVAL Y MOREYRA</string>
+</resources>

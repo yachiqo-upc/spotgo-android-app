@@ -1,18 +1,20 @@
 <resources>
     <string name="explore_title">Find parking nearby</string>
+    <string name="explore_subtitle">Availability and rates from SpotGo parking operators.</string>
     <string name="explore_search">Search parking zones</string>
+    <string name="explore_all">All</string>
     <string name="explore_saved">Saved</string>
     <string name="explore_no_saved">No saved parking yet. Tap the heart of a parking to keep it here.</string>
     <string name="explore_last_updated">Last updated · %1$s</string>
     <string name="explore_refresh">↻ Refresh</string>
-    <string name="explore_walking_distance">You · 4 min walk</string>
-    <string name="explore_parking_distance">%1$s km · %2$s</string>
     <string name="explore_spots">%1$d spots</string>
     <string name="explore_view_parking">View parking</string>
-    <string name="explore_marker_six">S/ 6</string>
-    <string name="explore_marker_seven">S/ 7</string>
-    <string name="explore_marker_eight">S/ 8</string>
-    <string name="explore_marker_five">S/ 5</string>
-    <string name="explore_marker_ten">S/ 10</string>
     <string name="explore_parking_marker">P</string>
+    <string name="explore_loading_parking">Loading parking facilities…</string>
+    <string name="explore_zones_and_spaces">Zones and spaces</string>
+    <string name="explore_saving_favorite">Saving favorite…</string>
+    <string name="explore_favorite_update_error">Could not update this SpotGo favorite.</string>
+    <string name="explore_map_snippet">From %1$s / hr · %2$d zones</string>
+    <string name="explore_map_updated">Updated · %1$s</string>
+    <string name="explore_backend_error">Could not load parking facilities or saved favorites. Check your connection and try again.</string>
 </resources>

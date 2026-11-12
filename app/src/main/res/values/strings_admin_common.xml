@@ -1,7 +1,0 @@
-<resources>
-    <string name="admin_account">Administrator account</string>
-    <string name="admin_action_unavailable">This action is not available yet.</string>
-    <string name="admin_parking_name">Javier Prado Parking</string>
-    <string name="admin_occupancy">Occupancy</string>
-    <string name="admin_available">Available</string>
-</resources>

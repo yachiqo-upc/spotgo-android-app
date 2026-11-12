@@ -13,6 +13,8 @@
     <string name="vehicles_note_title">Before reserving</string>
     <string name="vehicles_note_message">At least one vehicle must be registered and linked to your profile.</string>
     <string name="vehicles_empty">No vehicles registered yet.</string>
+    <string name="vehicles_load_error">Vehicles could not be loaded from SpotGo. Check your connection and reopen this screen.</string>
+    <string name="vehicles_backend_error">SpotGo could not save that change. Check your connection and try again.</string>
     <!-- Add vehicle (US27) -->
     <string name="add_vehicle_title">Add vehicle</string>
     <string name="add_vehicle_details">Vehicle details</string>

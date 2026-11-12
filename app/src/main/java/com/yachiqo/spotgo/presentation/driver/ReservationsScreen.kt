@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -18,11 +21,20 @@ import com.yachiqo.spotgo.data.model.Reservation
 import com.yachiqo.spotgo.data.model.ReservationStatus
 import com.yachiqo.spotgo.data.repository.ParkingRepository
 import com.yachiqo.spotgo.data.repository.VehicleRepository
+import com.yachiqo.spotgo.data.repository.RemoteVehicleRepository
+import com.yachiqo.spotgo.data.repository.RemoteReservationRepository
+import com.yachiqo.spotgo.data.repository.RemoteParkingRepository
+import com.yachiqo.spotgo.data.repository.ParkingCatalogResult
+import com.yachiqo.spotgo.data.repository.ReservationListResult
+import com.yachiqo.spotgo.data.repository.VehicleListResult
+import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.data.repository.isoDateLabel
 import com.yachiqo.spotgo.data.repository.isoRange
 import com.yachiqo.spotgo.data.repository.money
 import com.yachiqo.spotgo.presentation.driver.components.*
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Statuses shown by each tab of My reservations (mockup 06). */
 private val TAB_STATUSES = listOf(
@@ -42,8 +54,35 @@ fun ReservationsScreen(
     onOpenReservation: (String) -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    // Read on every recomposition so a reservation created in the reserve flow shows up.
-    val reservations = ParkingRepository.reservations_for_current_profile()
+    val backendMode = SpotGoApi.is_configured()
+    var remoteReservations by remember { mutableStateOf(emptyList<Reservation>()) }
+    var loading by remember { mutableStateOf(backendMode) }
+    var loadFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(backendMode) {
+        if (backendMode) {
+            loading = true
+            val (catalog, vehicles, result) = withContext(Dispatchers.IO) {
+                Triple(
+                    RemoteParkingRepository.loadFacilities(),
+                    RemoteVehicleRepository.loadVehicles(),
+                    RemoteReservationRepository.loadReservations(),
+                )
+            }
+            when {
+                catalog !is ParkingCatalogResult.Success || vehicles !is VehicleListResult.Success -> {
+                    loadFailed = true
+                }
+                result is ReservationListResult.Success -> {
+                    remoteReservations = result.reservations
+                    loadFailed = false
+                }
+                else -> loadFailed = true
+            }
+            loading = false
+        }
+    }
+    // Demo-only list remains available when no backend URL is configured.
+    val reservations = if (backendMode) remoteReservations else ParkingRepository.reservations_for_current_profile()
     val statuses = TAB_STATUSES.getOrElse(tab) { TAB_STATUSES[0] }
     val filtered = reservations.filter { it.status in statuses }
     // Upcoming: soonest first. History: most recent first.
@@ -62,7 +101,20 @@ fun ReservationsScreen(
                 }
         }
 
-        if (visible.isEmpty()) {
+        if (backendMode && loading) {
+            DriverPanel {
+                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator(Modifier.size(22.dp))
+                    Text(stringResource(R.string.reservations_loading), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        } else if (backendMode && loadFailed) {
+            DriverPanel {
+                Text(stringResource(R.string.reservations_load_error), Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
+        } else if (visible.isEmpty()) {
             DriverPanel {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -74,7 +126,7 @@ fun ReservationsScreen(
         }
 
         visible.forEach { reservation ->
-            ReservationCard(reservation, onViewDetails = { onOpenReservation(reservation.reservation_id) })
+            ReservationCard(reservation, backendMode, onViewDetails = { onOpenReservation(reservation.reservation_id) })
         }
 
         Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(18.dp)) {
@@ -90,9 +142,13 @@ fun ReservationsScreen(
 }
 
 @Composable
-private fun ReservationCard(reservation: Reservation, onViewDetails: () -> Unit) {
-    val zone = ParkingRepository.zone_by_id(reservation.zone_id)
-    val plate = VehicleRepository.vehicle_by_id(reservation.vehicle_id)?.plate
+private fun ReservationCard(reservation: Reservation, backendMode: Boolean, onViewDetails: () -> Unit) {
+    val zone = if (backendMode) {
+        RemoteParkingRepository.facilityForZone(reservation.zone_id)?.zones?.firstOrNull { it.zone_id == reservation.zone_id }
+    } else ParkingRepository.zone_by_id(reservation.zone_id)
+    val plate = if (backendMode) RemoteVehicleRepository.vehicleById(reservation.vehicle_id)?.plate
+        ?.takeIf(String::isNotBlank) ?: stringResource(R.string.reservations_vehicle_unavailable)
+    else VehicleRepository.vehicle_by_id(reservation.vehicle_id)?.plate
         ?: stringResource(R.string.confirmation_vehicle_value)
     val statusLabel: String
     val positive: Boolean
@@ -111,8 +167,10 @@ private fun ReservationCard(reservation: Reservation, onViewDetails: () -> Unit)
             Row(Modifier.fillMaxWidth().heightIn(min = 46.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(zone?.name ?: stringResource(R.string.driver_parking_name), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.driver_location), style = MaterialTheme.typography.bodySmall,
+                    Text(zone?.name ?: stringResource(if (backendMode) R.string.reservations_location_unavailable else R.string.driver_parking_name),
+                        style = MaterialTheme.typography.titleMedium)
+                    Text(if (backendMode) zone?.location ?: stringResource(R.string.reservations_location_unavailable)
+                        else stringResource(R.string.driver_location), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 StatusBadge(statusLabel, positive = positive)

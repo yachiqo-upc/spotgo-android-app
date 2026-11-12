@@ -252,6 +252,7 @@ internal fun ReviewPaySheet(
     endLabel: String,
     zoneName: String,
     amountLabel: String,
+    paymentMethodLabel: String? = null,
     paying: Boolean,
     onPay: () -> Unit,
     onChangePaymentMethod: () -> Unit,
@@ -295,7 +296,7 @@ internal fun ReviewPaySheet(
                 ) {
                     Text(stringResource(R.string.reserve_review_total, amountLabel),
                         style = MaterialTheme.typography.titleMedium, color = SpotGoAccent)
-                    Text(stringResource(R.string.reserve_review_payment_method),
+                    Text(paymentMethodLabel ?: stringResource(R.string.reserve_review_payment_method),
                         style = MaterialTheme.typography.bodySmall, color = SpotGoSecondaryText)
                 }
             }

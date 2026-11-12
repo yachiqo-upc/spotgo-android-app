@@ -2,29 +2,31 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Needed by the Google Maps SDK and by the backend calls
-         (Pendiente 2 / 3 / 5). -->
+    <!-- Backend calls and MapLibre / OpenStreetMap tiles. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Blue dot of the current location on the Explore map (Maps SDK). -->
+    <!-- Android 17 requires explicit runtime consent for local backend access. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <!-- User location indicator on the Explore map (MapLibre). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".locale.SpotGoApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="${SPOTGO_USES_CLEARTEXT_TRAFFIC}"
         android:theme="@style/Theme.SpotGo">
-        <!-- Google Maps key from SPOTGO_MAPS_API_KEY in local.properties.
-             Empty while the key is not configured (the app then keeps the
-             designed map of mockup 03). -->
         <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${SPOTGO_MAPS_API_KEY}" />
+            android:name="firebase_messaging_installation_id_enabled"
+            android:value="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -37,6 +39,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".notifications.SpotGoFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

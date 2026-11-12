@@ -24,6 +24,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.yachiqo.spotgo.R
+import com.yachiqo.spotgo.data.remote.SpotGoApi
+import com.yachiqo.spotgo.presentation.common.BackendUnavailableScreen
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import kotlinx.coroutines.launch
@@ -46,6 +48,10 @@ fun DriverLayout(
     onBackToLogin: () -> Unit,
     content: (@Composable (DriverDestination) -> Unit)? = null,
 ) {
+    if (!SpotGoApi.is_configured()) {
+        BackendUnavailableScreen()
+        return
+    }
     var destination by rememberSaveable { mutableStateOf(DriverDestination.EXPLORE) }
     var flow by rememberSaveable { mutableStateOf(DriverFlow.MAIN) }
     var zoneId by rememberSaveable { mutableStateOf("") }
@@ -97,12 +103,18 @@ fun DriverLayout(
             if (flow == DriverFlow.ZONE_DETAILS) ZoneDetailsScreen(
                 zoneId = zoneId,
                 onBack = { flow = DriverFlow.MAIN },
-                onPaid = { flow = DriverFlow.CONFIRMED },
+                onPaid = { createdReservationId ->
+                    if (createdReservationId != null) {
+                        reservationId = createdReservationId
+                        flow = DriverFlow.RESERVATION_DETAILS
+                    } else flow = DriverFlow.CONFIRMED
+                },
                 onMyVehicles = { flow = DriverFlow.VEHICLES },
                 onOpenBalance = { flow = DriverFlow.PAYMENT_BALANCE },
                 onUnavailableAction = unavailableAction,
             )
             else if (flow == DriverFlow.CONFIRMED) ReservationConfirmedScreen(
+                reservationId = reservationId,
                 onMyReservations = { destination = DriverDestination.RESERVATIONS; flow = DriverFlow.MAIN },
                 onUnavailableAction = unavailableAction,
             )
@@ -138,6 +150,7 @@ fun DriverLayout(
                 onEdit = { flow = DriverFlow.RESERVATION_EDIT },
                 onNotice = notice,
                 onUnavailableAction = unavailableAction,
+                onOpenReservation = { reservationId = it; flow = DriverFlow.RESERVATION_DETAILS },
             )
             else if (flow == DriverFlow.RESERVATION_EDIT) EditReservationScreen(
                 reservationId = reservationId,
@@ -161,7 +174,6 @@ fun DriverLayout(
                     onOpenReceipts = { flow = DriverFlow.RECEIPTS },
                     onOpenDocument = { documentId = it; flow = DriverFlow.RECEIPT_DETAIL },
                     onNotice = notice,
-                    onUnavailableAction = unavailableAction,
                 )
                 DriverDestination.PROFILE -> ProfileScreen(
                     onSignOut = onBackToLogin,

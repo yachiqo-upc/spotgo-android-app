@@ -158,6 +158,7 @@ data class Reservation(
     val lock_expires_at: String?,
     val created_at: String,
     val updated_at: String,
+    val parent_reservation_id: String? = null,
 )
 
 /** Values of reservations.status (documented in 23-bounded-3). */

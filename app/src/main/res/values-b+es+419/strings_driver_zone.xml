@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="zone_title">Detalles de la zona</string>
+    <string name="zone_back">Volver a Explorar</string>
+    <string name="zone_map_distance">A %1$s km · San Isidro, Lima</string>
+    <string name="zone_address_format">%1$s · San Isidro, Lima</string>
+    <string name="zone_directions">Cómo llegar</string>
+    <string name="zone_marker_name">Javier Prado</string>
+    <string name="zone_available_count">6</string>
+    <string name="zone_available_spots">espacios disponibles</string>
+    <string name="zone_closing_time">11:00 p. m.</string>
+    <string name="zone_open_until">abierto hasta</string>
+    <string name="zone_hours_unavailable">No se indicó</string>
+    <string name="zone_accessible">Accesible</string>
+    <string name="zone_reserve_title">Reserva esta zona</string>
+    <string name="zone_vehicle">Vehículo</string>
+    <string name="zone_vehicle_value">Toyota Yaris · AJK-247</string>
+    <string name="zone_date">Fecha</string>
+    <string name="zone_today">Hoy</string>
+    <string name="zone_start_time">Hora de inicio</string>
+    <string name="zone_start_time_value">10:30 a. m.</string>
+    <string name="zone_duration">Duración</string>
+    <string name="zone_duration_value">2 horas</string>
+    <string name="zone_total">Total estimado</string>
+    <string name="zone_total_value">S/ 16.00</string>
+    <string name="zone_plan_discount">Descuento del plan (%1$d%%)</string>
+    <string name="zone_continue">Continuar</string>
+    <string name="zone_backend_data_error">No se pudieron cargar los vehículos, los métodos de pago o los datos de suscripción de SpotGo.</string>
+    <string name="zone_catalog_loading">Cargando detalles de la zona de estacionamiento de SpotGo…</string>
+    <string name="zone_backend_catalog_error">No se pudieron cargar los detalles de la zona de estacionamiento de SpotGo.</string>
+    <string name="zone_not_found">Esta zona de estacionamiento no está disponible en SpotGo. Vuelve a Explorar e inténtalo de nuevo.</string>
+    <string name="zone_dropdown">⌄</string>
+    <string name="zone_availability_check_error">No se pudo consultar la disponibilidad con el backend.</string>
+    <string name="zone_create_reservation_error">No se pudo crear la reserva. Revisa la disponibilidad, tu vehículo y los saldos pendientes.</string>
+    <string name="zone_payment_method_unavailable_title">Método de pago no disponible</string>
+    <string name="zone_payment_method_unavailable_message">No hay un método de pago registrado en esta cuenta. Agrega un método simulado en Pagos antes de reservar. No se usan datos reales de tarjetas ni se realizan cobros.</string>
+    <string name="zone_payment_failed_title">No se pudo completar el pago</string>
+</resources>

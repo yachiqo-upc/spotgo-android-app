@@ -18,7 +18,7 @@ sealed interface VehicleResult {
  * - INVALID_PLATE: plate does not match the Peruvian format (state 12b).
  * - DUPLICATE_PLATE: plate already linked to the Driver account (state 12a).
  */
-enum class VehicleError { INVALID_FORM, INVALID_PLATE, DUPLICATE_PLATE }
+enum class VehicleError { INVALID_FORM, INVALID_PLATE, DUPLICATE_PLATE, API_ERROR }
 
 /**
  * In-memory vehicles of the signed-in Driver while the backend does not exist.

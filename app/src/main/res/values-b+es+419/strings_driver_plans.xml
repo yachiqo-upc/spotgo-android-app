@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plans_title">Planes y suscripción</string>
+    <string name="plans_heading">Planes disponibles</string>
+    <string name="plans_subtitle">Los precios y descuentos se obtienen del catálogo de planes de SpotGo.</string>
+    <string name="plans_monthly_name">Mensual</string>
+    <string name="plans_annual_name">Anual</string>
+    <string name="plans_badge_current">Actual</string>
+    <string name="plans_current_button">Plan actual</string>
+    <string name="plans_subscribe">Suscribirme</string>
+    <string name="plans_cancel_first">Primero cancela el plan actual</string>
+    <string name="plans_processing">Procesando pago…</string>
+    <string name="plans_current_label">Suscripción actual</string>
+    <string name="plans_no_active">No tienes una suscripción de pago activa</string>
+    <string name="plans_end_date">Finaliza el %1$s</string>
+    <string name="plans_billing_period">%1$d mes(es)</string>
+    <string name="plans_discount">%1$d%% de descuento</string>
+    <string name="plans_price_unavailable">Precio no disponible</string>
+    <string name="plans_catalog_empty">No hay planes para conductores en el catálogo del backend.</string>
+    <string name="plans_loading">Cargando planes y suscripciones de SpotGo…</string>
+    <string name="plans_backend_error">No se pudieron cargar los planes o el estado de la suscripción desde SpotGo.</string>
+    <string name="plans_token_required">Se requiere un método de pago tokenizado registrado.</string>
+    <string name="plans_tokenization_notice">Agrega un método de pago simulado en Pagos para usar este plan. No se usan datos reales de tarjetas ni se realizan cobros.</string>
+    <string name="plans_payment_approved">SpotGo aprobó el pago.</string>
+    <string name="plans_payment_status_prefix">Estado del pago:</string>
+    <string name="plans_cancel_subscription">Cancelar suscripción</string>
+    <string name="plans_cancelled">SpotGo canceló la suscripción.</string>
+</resources>

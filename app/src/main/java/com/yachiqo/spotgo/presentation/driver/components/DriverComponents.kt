@@ -98,15 +98,20 @@ internal fun StatusBadge(label: String, positive: Boolean = true) {
 }
 
 @Composable
-internal fun DriverPrimaryButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Button(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
+internal fun DriverPrimaryButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Button(onClick = onClick, enabled = enabled, modifier = modifier.fillMaxWidth().heightIn(min = 52.dp),
         shape = RoundedCornerShape(16.dp)) { Text(label, style = MaterialTheme.typography.bodyLarge) }
 }
 
 @Composable
 internal fun DriverOutlineButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurface) {
-    OutlinedButton(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = 56.dp),
+    color: Color = MaterialTheme.colorScheme.onSurface, enabled: Boolean = true) {
+    OutlinedButton(onClick = onClick, enabled = enabled, modifier = modifier.fillMaxWidth().heightIn(min = 56.dp),
         shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.outlinedButtonColors(contentColor = color)) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
     }

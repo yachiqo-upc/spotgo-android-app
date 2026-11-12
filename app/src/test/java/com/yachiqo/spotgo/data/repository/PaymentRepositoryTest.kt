@@ -10,7 +10,6 @@ import com.yachiqo.spotgo.data.model.RefundStatus
 import com.yachiqo.spotgo.data.model.Reservation
 import com.yachiqo.spotgo.data.model.ReservationStatus
 import com.yachiqo.spotgo.data.model.SubscriptionPlan
-import com.yachiqo.spotgo.data.remote.SpotGoApi
 import java.time.LocalDateTime
 import java.time.LocalTime
 import org.junit.After
@@ -19,7 +18,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
 
@@ -159,21 +157,6 @@ class PaymentRepositoryTest {
         assertTrue(PaymentRepository.document_by_id("doc-seed-0001")!!.is_emailed)
         // Unknown ids are ignored instead of crashing.
         PaymentRepository.mark_downloaded("doc-unknown")
-    }
-
-    @Test
-    fun sendingTheReceiptByEmailWaitsForTheBackend() {
-        // The demo build has no SPOTGO_API_BASE_URL, so the feature reports
-        // "backend missing" and nothing is marked as sent (Pendiente 3).
-        Assume.assumeFalse(SpotGoApi.is_configured())
-        val result = PaymentRepository.send_document_by_email("doc-seed-0001", "Receipt SG-4821", "Body")
-        assertEquals(EmailSendResult.BackendMissing, result)
-        assertFalse(PaymentRepository.document_by_id("doc-seed-0001")!!.is_emailed)
-
-        // Without a session there is no recipient at all.
-        AuthRepository.sign_out()
-        val noRecipient = PaymentRepository.send_document_by_email("doc-seed-0001", "Receipt SG-4821", "Body")
-        assertTrue(noRecipient is EmailSendResult.Failed)
     }
 
     /* ------------------------------------------------------------------ */

@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,36 +22,38 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yachiqo.spotgo.R
-import com.yachiqo.spotgo.data.model.BillingDocumentType
-import com.yachiqo.spotgo.data.repository.PaymentRepository
+import com.yachiqo.spotgo.data.repository.RemoteBillingDocumentEntry
+import com.yachiqo.spotgo.data.repository.RemoteBillingRepository
+import com.yachiqo.spotgo.data.repository.isoDateLabel
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.driver.components.*
 import com.yachiqo.spotgo.ui.theme.SpotGoAccent
 import com.yachiqo.spotgo.ui.theme.SpotGoOnAccent
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-/** Document filters of mockup 14 (All · Receipts · Invoices). */
 private enum class DocumentFilter { ALL, RECEIPTS, INVOICES }
 
-/**
- * Mockup 14 — Receipts &amp; invoices (US21 scenarios 1-3): the payment
- * documents of the account with the All / Receipts / Invoices filter; each
- * row opens the detail of mockup 40.
- */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReceiptsScreen(
     onBack: () -> Unit,
     onOpenDocument: (String) -> Unit,
 ) {
     var filter by remember { mutableStateOf(DocumentFilter.ALL) }
-    val documents = remember(filter) {
-        PaymentRepository.documents().filter {
-            when (filter) {
-                DocumentFilter.ALL -> true
-                DocumentFilter.RECEIPTS -> it.document_type == BillingDocumentType.ELECTRONIC_RECEIPT
-                DocumentFilter.INVOICES -> it.document_type == BillingDocumentType.ELECTRONIC_INVOICE
-            }
+    var documents by remember { mutableStateOf<List<RemoteBillingDocumentEntry>?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        loading = true
+        documents = withContext(Dispatchers.IO) { RemoteBillingRepository.loadDocuments() }
+        loading = false
+    }
+    val filtered = documents.orEmpty().filter { entry ->
+        when (filter) {
+            DocumentFilter.ALL -> true
+            DocumentFilter.RECEIPTS -> entry.document.documentType == "ELECTRONIC_RECEIPT"
+            DocumentFilter.INVOICES -> entry.document.documentType == "ELECTRONIC_INVOICE"
         }
     }
 
@@ -71,50 +74,53 @@ fun ReceiptsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            DocumentFilterRow(
-                selected = filter,
-                onSelect = { filter = it },
-            )
+            DocumentFilterRow(selected = filter, onSelect = { filter = it })
 
-            if (documents.isEmpty()) {
-                Text(stringResource(R.string.receipts_empty), style = MaterialTheme.typography.bodyMedium,
+            when {
+                loading -> DriverPanel {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CircularProgressIndicator(Modifier.size(22.dp))
+                        Text(stringResource(R.string.receipts_loading), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                documents == null -> DriverPanel {
+                    Text(stringResource(R.string.receipts_load_error), Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                }
+                filtered.isEmpty() -> Text(stringResource(R.string.receipts_empty), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-            } else {
-                DriverPanel {
-                    documents.forEach { document ->
-                        val payment = PaymentRepository.payment_by_id(document.payment_id)
-                        val isInvoice = document.document_type == BillingDocumentType.ELECTRONIC_INVOICE
-                        val subtitle = if (isInvoice) {
-                            stringResource(R.string.receipts_row_invoice,
-                                PaymentRepository.shortDateLabel(document.issued_at), document.fiscal_reference)
-                        } else {
-                            stringResource(R.string.receipts_row_receipt,
-                                PaymentRepository.shortDateLabel(document.issued_at), document.fiscal_reference)
-                        }
+                else -> DriverPanel {
+                    filtered.forEach { entry ->
+                        val isInvoice = entry.document.documentType == "ELECTRONIC_INVOICE"
+                        val date = isoDateLabel(entry.document.issuedAt)
+                        val subtitle = stringResource(
+                            if (isInvoice) R.string.receipts_row_invoice else R.string.receipts_row_receipt,
+                            date,
+                            entry.document.reference,
+                        )
                         ListItem(
-                            headlineContent = { Text(payment?.summary ?: document.fiscal_reference,
-                                style = MaterialTheme.typography.titleMedium) },
+                            headlineContent = { Text(paymentSummary(entry), style = MaterialTheme.typography.titleMedium) },
                             supportingContent = { Text(subtitle, style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant) },
                             trailingContent = {
-                                Text("S/ ${payment?.amount ?: "0.00"}", style = MaterialTheme.typography.bodyMedium,
+                                Text("${entry.payment.currency} ${entry.payment.amount}",
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             },
                             modifier = Modifier.heightIn(min = 72.dp)
-                                .clickable { onOpenDocument(document.document_id) },
+                                .clickable { onOpenDocument(entry.payment.paymentId) },
                             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                         )
                     }
                 }
             }
 
-            // Info card of the mockup.
             Surface(color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(stringResource(R.string.receipts_need_invoice), style = MaterialTheme.typography.titleSmall,
                         color = SpotGoAccent)
-                    Text(stringResource(R.string.receipts_need_invoice_message),
-                        style = MaterialTheme.typography.bodySmall,
+                    Text(stringResource(R.string.receipts_need_invoice_message), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -122,7 +128,14 @@ fun ReceiptsScreen(
     }
 }
 
-/** Three-way filter that reproduces the segmented control of mockup 14. */
+@Composable
+private fun paymentSummary(entry: RemoteBillingDocumentEntry): String = when (entry.payment.operationType) {
+    "RESERVATION", "RESERVATION_ADJUSTMENT" -> stringResource(R.string.payments_reservation)
+    "SUBSCRIPTION", "SUBSCRIPTION_ADJUSTMENT" -> stringResource(R.string.payments_subscription)
+    "ADDITIONAL_CHARGE" -> stringResource(R.string.payments_additional_charge)
+    else -> stringResource(R.string.payments_operation)
+}
+
 @Composable
 private fun DocumentFilterRow(selected: DocumentFilter, onSelect: (DocumentFilter) -> Unit) {
     val options = listOf(
@@ -130,7 +143,7 @@ private fun DocumentFilterRow(selected: DocumentFilter, onSelect: (DocumentFilte
         DocumentFilter.RECEIPTS to stringResource(R.string.receipts_filter_receipts),
         DocumentFilter.INVOICES to stringResource(R.string.receipts_filter_invoices),
     )
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+    Row(Modifier.fillMaxWidth()) {
         options.forEachIndexed { index, (key, label) ->
             val active = key == selected
             val shape = when (index) {

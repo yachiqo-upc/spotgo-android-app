@@ -65,12 +65,16 @@ import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.data.repository.AuthError
 import com.yachiqo.spotgo.data.repository.AuthResult
 import com.yachiqo.spotgo.data.repository.AuthRepository
+import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.presentation.common.SpotGoWordmark
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.common.StateBottomSheet
 import com.yachiqo.spotgo.ui.theme.SpotGoSupportingText
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,6 +83,7 @@ fun LoginScreen(
     onOpenDriver: () -> Unit,
     onCreateAccount: () -> Unit,
     onForgotPassword: () -> Unit,
+    onCompleteProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val email = rememberTextFieldState()
@@ -89,12 +94,14 @@ fun LoginScreen(
     var googleSheetVisible by remember { mutableStateOf(false) }
     // Pendiente 2 — real Google sign-in runs while the account sheet opens.
     var googleSigningIn by remember { mutableStateOf(false) }
+    var signingIn by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val googleDemoMessage = stringResource(R.string.google_demo_unavailable, AuthRepository.GOOGLE_DEMO_EMAIL)
     val googleFailedMessage = stringResource(R.string.google_signin_failed)
+    val loginBackendErrorMessage = stringResource(R.string.login_backend_error)
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -201,19 +208,40 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             focusManager.clearFocus()
-                            when (val result = AuthRepository.sign_in(
-                                email = email.text.toString(),
-                                password = password.text.toString(),
-                                keep_signed_in = keepSignedIn,
-                            )) {
-                                is AuthResult.Success -> onOpenDriver()
-                                is AuthResult.Failure -> authError = result.error
+                            if (!signingIn) scope.launch {
+                                signingIn = true
+                                val result = try {
+                                    withContext(Dispatchers.IO) {
+                                        AuthRepository.sign_in(
+                                            email = email.text.toString(),
+                                            password = password.text.toString(),
+                                            keep_signed_in = keepSignedIn,
+                                        )
+                                    }
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Exception) {
+                                    AuthResult.Failure(AuthError.API_ERROR)
+                                } finally {
+                                    signingIn = false
+                                }
+                                when (result) {
+                                    is AuthResult.Success -> onOpenDriver()
+                                    is AuthResult.Failure -> if (result.error == AuthError.PROFILE_REQUIRED) {
+                                        onCompleteProfile()
+                                    } else if (result.error == AuthError.API_ERROR) {
+                                        snackbar.showSnackbar(loginBackendErrorMessage)
+                                    } else authError = result.error
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = RoundedCornerShape(16.dp),
                     ) {
-                        Text(stringResource(R.string.login_sign_in), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            stringResource(if (signingIn) R.string.login_signing_in else R.string.login_sign_in),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -246,16 +274,23 @@ fun LoginScreen(
                                             is GoogleSignInResult.Success -> {
                                                 googleSigningIn = false
                                                 when (
-                                                    val auth = AuthRepository.sign_in_with_google(
-                                                        keep_signed_in = keepSignedIn,
-                                                        email = result.email,
-                                                        display_name = result.display_name,
-                                                        external_subject = GoogleIdentity.subjectOf(result.id_token)
-                                                            .ifBlank { result.id_token },
-                                                    )
+                                                    val auth = withContext(Dispatchers.IO) {
+                                                        AuthRepository.sign_in_with_google(
+                                                            keep_signed_in = keepSignedIn,
+                                                            email = result.email,
+                                                            display_name = result.display_name,
+                                                            external_subject = GoogleIdentity.subjectOf(result.id_token)
+                                                                .ifBlank { result.id_token },
+                                                            id_token = result.id_token,
+                                                        )
+                                                    }
                                                 ) {
                                                     is AuthResult.Success -> onOpenDriver()
-                                                    is AuthResult.Failure -> authError = auth.error
+                                                    is AuthResult.Failure -> if (auth.error == AuthError.PROFILE_REQUIRED) {
+                                                        onCompleteProfile()
+                                                    } else if (auth.error == AuthError.API_ERROR) {
+                                                        snackbar.showSnackbar(googleFailedMessage)
+                                                    } else authError = auth.error
                                                 }
                                             }
                                             GoogleSignInResult.Cancelled -> googleSigningIn = false
@@ -271,6 +306,7 @@ fun LoginScreen(
                                     }
                                 }
                                 // No client id yet: simulated chooser of the mockups.
+                                SpotGoApi.is_configured() -> scope.launch { snackbar.showSnackbar(googleFailedMessage) }
                                 else -> googleSheetVisible = true
                             }
                         },

@@ -1,267 +1,367 @@
 package com.yachiqo.spotgo.presentation.driver
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
 import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.data.model.ParkingZone
-import com.yachiqo.spotgo.data.repository.FavoriteRepository
-import com.yachiqo.spotgo.data.repository.ParkingRepository
+import com.yachiqo.spotgo.data.repository.ParkingCatalogResult
+import com.yachiqo.spotgo.data.repository.ParkingFacilityListing
+import com.yachiqo.spotgo.data.repository.RemoteParkingRepository
 import com.yachiqo.spotgo.data.repository.money
 import com.yachiqo.spotgo.data.repository.moneyWhole
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
-import com.yachiqo.spotgo.presentation.driver.components.*
+import com.yachiqo.spotgo.presentation.driver.components.DriverMapBackground
+import com.yachiqo.spotgo.presentation.driver.components.DriverPage
+import com.yachiqo.spotgo.presentation.driver.components.DriverPanel
+import com.yachiqo.spotgo.presentation.driver.components.FavoriteButton
+import com.yachiqo.spotgo.presentation.driver.components.MapLibreMapView
+import com.yachiqo.spotgo.presentation.driver.components.ParkingMapPoint
+import com.yachiqo.spotgo.presentation.driver.components.StatusBadge
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-/**
- * Mockup 03 — Explore parking (US01 / US25): map with the registered zones
- * as price markers, manual refresh of the availability timestamp, filters
- * and the details card of the selected zone.
- */
+/** Driver Explore: tenant facilities are map markers; each facility shows its backend zones. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExploreParkingScreen(onOpenZone: (String) -> Unit, onProfile: () -> Unit, onUnavailableAction: () -> Unit) {
-    val allZones = remember { ParkingRepository.zones() }
+fun ExploreParkingScreen(
+    onOpenZone: (String) -> Unit,
+    onProfile: () -> Unit,
+    onUnavailableAction: () -> Unit,
+) {
+    var facilities by remember { mutableStateOf<List<ParkingFacilityListing>>(emptyList()) }
+    var selectedTenantId by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
-    var filterIndex by rememberSaveable { mutableStateOf(0) }
-    var selectedZoneId by rememberSaveable { mutableStateOf("zne-seed-0003") }
-    var lastUpdated by remember { mutableStateOf(ParkingRepository.last_updated) }
+    var filterIndex by rememberSaveable { mutableIntStateOf(0) }
+    var refreshKey by remember { mutableIntStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var favoriteRequest by remember { mutableStateOf(false) }
+    var lastUpdated by remember { mutableStateOf("—") }
+    val favoriteUpdateError = stringResource(R.string.explore_favorite_update_error)
+    val backendLoadError = stringResource(R.string.explore_backend_error)
+    val scope = rememberCoroutineScope()
 
-    // Filter chips: 0 Available (default view), 1 Covered, 2 EV,
-    // 3 Saved — the zones marked as favorite with the heart (UI-only
-    // favorites, mirror of /api/v1/favorites).
-    val savedIds = FavoriteRepository.saved_zone_ids()
-    val zones = allZones.filter { zone ->
-        val matchesQuery = query.isBlank() ||
-            zone.name.contains(query, ignoreCase = true) ||
-            zone.location.contains(query, ignoreCase = true)
+    LaunchedEffect(refreshKey) {
+        loading = true
+        error = null
+        when (val result = withContext(Dispatchers.IO) { RemoteParkingRepository.loadFacilities() }) {
+            is ParkingCatalogResult.Success -> {
+                facilities = result.facilities
+                lastUpdated = java.time.LocalTime.now()
+                    .format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault()))
+                if (selectedTenantId !in facilities.map { it.tenantId }) {
+                    selectedTenantId = facilities.firstOrNull()?.tenantId.orEmpty()
+                }
+            }
+            is ParkingCatalogResult.Failure -> error = backendLoadError
+        }
+        loading = false
+    }
+
+    val visibleFacilities = facilities.filter { facility ->
+        val matchesQuery = query.isBlank() || facility.name.contains(query, ignoreCase = true) ||
+            facility.address.contains(query, ignoreCase = true) ||
+            facility.zones.any { it.name.contains(query, ignoreCase = true) }
         val matchesFilter = when (filterIndex) {
-            1 -> zone.amenities.contains("COVERED")
-            2 -> zone.amenities.contains("EV")
-            3 -> zone.zone_id in savedIds
+            0 -> true
+            1 -> facility.availableSpots > 0
+            2 -> facility.hasCoveredSpots
+            3 -> facility.hasEvCharging
+            4 -> facility.isFavorite
             else -> true
         }
         matchesQuery && matchesFilter
     }
-    val selectedZone = allZones.firstOrNull { it.zone_id == selectedZoneId } ?: zones.firstOrNull()
+    val selectedFacility = visibleFacilities.firstOrNull { it.tenantId == selectedTenantId }
+        ?: visibleFacilities.firstOrNull()
 
-    DriverPage(stringResource(R.string.explore_title), stringResource(R.string.driver_location), onProfile, prominentTitle = true) {
+    DriverPage(
+        stringResource(R.string.explore_title),
+        stringResource(R.string.explore_subtitle),
+        onProfile,
+        prominentTitle = true,
+    ) {
         SearchBar(
             inputField = {
                 SearchBarDefaults.InputField(
-                    query = query, onQueryChange = { query = it }, onSearch = {},
-                    expanded = false, onExpandedChange = {},
+                    query = query,
+                    onQueryChange = { query = it },
+                    onSearch = {},
+                    expanded = false,
+                    onExpandedChange = {},
                     placeholder = { Text(stringResource(R.string.explore_search)) },
-                    leadingIcon = { FigmaIcon(R.drawable.ic_explore) })
+                    leadingIcon = { FigmaIcon(R.drawable.ic_explore) },
+                )
             },
-            expanded = false, onExpandedChange = {}, modifier = Modifier.fillMaxWidth(),
-            windowInsets = WindowInsets(0), colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            expanded = false,
+            onExpandedChange = {},
+            modifier = Modifier.fillMaxWidth(),
+            windowInsets = WindowInsets(0),
+            colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         ) {}
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).height(40.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-            listOf(R.string.driver_available, R.string.driver_covered, R.string.driver_ev, R.string.explore_saved)
+
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).height(40.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listOf(
+                R.string.explore_all,
+                R.string.driver_available,
+                R.string.driver_covered,
+                R.string.driver_ev,
+                R.string.explore_saved,
+            )
                 .forEachIndexed { index, label ->
-                    FilterChip(selected = index == filterIndex, onClick = { filterIndex = index },
-                        label = { Text(stringResource(label), style = MaterialTheme.typography.bodyMedium) })
+                    FilterChip(
+                        selected = index == filterIndex,
+                        onClick = { filterIndex = index },
+                        label = { Text(stringResource(label), style = MaterialTheme.typography.bodyMedium) },
+                    )
                 }
         }
-        if (zones.isEmpty()) {
-            DriverPanel(outlined = true) {
+
+        ExploreMap(
+            facilities = visibleFacilities,
+            selected = selectedFacility,
+            lastUpdated = lastUpdated,
+            onRefresh = { refreshKey++ },
+            onSelectTenant = { selectedTenantId = it },
+        )
+
+        when {
+            loading -> DriverPanel(outlined = true) {
+                Text(stringResource(R.string.explore_loading_parking), Modifier.padding(16.dp))
+            }
+            error != null -> DriverPanel(outlined = true) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(error.orEmpty(), style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = { refreshKey++ }, enabled = !loading) {
+                        Text(stringResource(R.string.explore_refresh))
+                    }
+                }
+            }
+            visibleFacilities.isEmpty() -> DriverPanel(outlined = true) {
                 Text(
-                    stringResource(if (filterIndex == 3) R.string.explore_no_saved else R.string.explore_no_match),
+                    stringResource(if (filterIndex == 4) R.string.explore_no_saved else R.string.explore_no_match),
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        } else {
-            ExploreMap(allZones, zones, selectedZone, lastUpdated, onUnavailableAction,
-                onSelectZone = { selectedZoneId = it.zone_id }, onRefresh = {
-                    ParkingRepository.refresh()
-                    lastUpdated = ParkingRepository.last_updated
-                })
-            ZoneCard(selectedZone, onOpenZone, onUnavailableAction)
+            else -> {
+                selectedFacility?.let { facility ->
+                    FacilityCard(
+                        facility = facility,
+                        favoriteRequest = favoriteRequest,
+                        onToggleFavorite = {
+                            if (!favoriteRequest) scope.launch {
+                                favoriteRequest = true
+                                val changed = withContext(Dispatchers.IO) {
+                                    RemoteParkingRepository.toggleFavorite(facility)
+                                }
+                                favoriteRequest = false
+                                if (changed) refreshKey++ else error = favoriteUpdateError
+                            }
+                        },
+                        onOpenZone = onOpenZone,
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun ExploreMap(
-    allZones: List<ParkingZone>,
-    zones: List<ParkingZone>,
-    selectedZone: ParkingZone?,
+    facilities: List<ParkingFacilityListing>,
+    selected: ParkingFacilityListing?,
     lastUpdated: String,
-    onUnavailableAction: () -> Unit,
-    onSelectZone: (ParkingZone) -> Unit,
     onRefresh: () -> Unit,
+    onSelectTenant: (String) -> Unit,
 ) {
-    Surface(shape = RoundedCornerShape(24.dp), color = DriverMapBackground,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline), modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = DriverMapBackground,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         BoxWithConstraints(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))) {
-            val scale = maxWidth / 376.dp
-            val rightMarkerOffset = minOf(282.dp * scale, maxWidth - 94.dp)
-            if (googleMapsConfigured()) {
-                // Pendiente 2 — real Google map (SPOTGO_MAPS_API_KEY).
-                Box(Modifier.fillMaxWidth().height(349.dp * scale)) {
-                    GoogleMapView(allZones, selectedZone?.zone_id, onSelectZone, Modifier.matchParentSize())
-                    LastUpdatedBar(lastUpdated, onRefresh)
-                }
-            } else {
-                Column {
-                    Box(Modifier.fillMaxWidth().height(349.dp * scale)) {
-                        ParkingMapBase()
-                        Image(painterResource(R.drawable.map_walking_route), null,
-                            Modifier.offset(106.dp * scale, 218.dp * scale).size(110.dp * scale, 93.dp * scale))
-                        Image(painterResource(R.drawable.map_location_halo), null,
-                            Modifier.offset(92.dp * scale, 295.dp * scale).size(30.dp * scale))
-                        Image(painterResource(R.drawable.map_location_dot), null,
-                            Modifier.offset(101.dp * scale, 304.dp * scale).size(12.dp * scale))
-                        // Marker positions of mockup 03, indexed by the seed zone order.
-                        val markerPositions = listOf(
-                            23.dp to 87.dp, 180.dp to 60.dp, 165.dp to 179.dp, 20.dp to 221.dp,
+            val mapHeight = 349.dp * (maxWidth / 376.dp)
+            Box(Modifier.fillMaxWidth().height(mapHeight)) {
+                MapLibreMapView(
+                    points = facilities.map { facility ->
+                        ParkingMapPoint(
+                            id = facility.tenantId,
+                            title = facility.name,
+                            snippet = stringResource(R.string.explore_map_snippet, moneyWhole(facility.hourlyPrice), facility.zones.size),
+                            latitude = facility.latitude,
+                            longitude = facility.longitude,
                         )
-                        zones.forEach { zone ->
-                            val index = allZones.indexOfFirst { it.zone_id == zone.zone_id }
-                            val offset = if (index == 4) rightMarkerOffset to 292.dp
-                            else markerPositions.getOrElse(index) { 23.dp to 87.dp }
-                            ParkingMarker(
-                                price = moneyWhole(zone.hourly_price),
-                                selected = zone.zone_id == selectedZone?.zone_id,
-                                onClick = { onSelectZone(zone) },
-                                modifier = Modifier.offset(offset.first * scale, offset.second * scale),
-                            )
-                        }
-                        Text(stringResource(R.string.explore_walking_distance),
-                            Modifier.offset(17.dp * scale, 332.dp * scale), style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        LastUpdatedBar(lastUpdated, onRefresh)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** "Last updated · hh:mm" + Refresh overlay shared by both maps. */
-@Composable
-private fun LastUpdatedBar(lastUpdated: String, onRefresh: () -> Unit) {
-    Surface(Modifier.fillMaxWidth().padding(12.dp), shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer) {
-        Row(Modifier.padding(start = 10.dp).height(32.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.explore_last_updated, lastUpdated), Modifier.weight(1f),
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = onRefresh, modifier = Modifier.height(32.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp)) {
-                Text(stringResource(R.string.explore_refresh), style = MaterialTheme.typography.bodySmall)
+                    },
+                    selectedPointId = selected?.tenantId,
+                    onSelectPoint = onSelectTenant,
+                    modifier = Modifier.matchParentSize(),
+                )
+                LastUpdatedBar(lastUpdated, onRefresh, Modifier.align(Alignment.TopCenter))
             }
         }
     }
 }
 
 @Composable
-private fun ZoneCard(
-    zone: ParkingZone?,
+private fun LastUpdatedBar(lastUpdated: String, onRefresh: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        ) {
+            Text(
+                stringResource(R.string.explore_map_updated, lastUpdated),
+                Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        androidx.compose.material3.TextButton(onClick = onRefresh) {
+            Text(stringResource(R.string.explore_refresh))
+        }
+    }
+}
+
+@Composable
+private fun FacilityCard(
+    facility: ParkingFacilityListing,
+    favoriteRequest: Boolean,
+    onToggleFavorite: () -> Unit,
     onOpenZone: (String) -> Unit,
-    onUnavailableAction: () -> Unit,
 ) {
-    if (zone == null) return
-    val available = ParkingRepository.available_count(zone.zone_id)
-    Surface(Modifier.fillMaxWidth().padding(top = 4.dp),
-        shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    Surface(
+        Modifier.fillMaxWidth().padding(top = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(zone.name, style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.explore_parking_distance, zone.distance_km.toString(), zone.location),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(facility.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        facility.address,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(money(zone.hourly_price), color = MaterialTheme.colorScheme.primary,
+                FavoriteButton(facility.isFavorite, onClick = onToggleFavorite)
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(money(facility.hourlyPrice), color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp))
                     Text(stringResource(R.string.driver_per_hour), style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                StatusBadge(
+                    if (facility.availableSpots > 0) stringResource(R.string.explore_spots, facility.availableSpots)
+                    else stringResource(R.string.explore_no_spots),
+                    positive = facility.availableSpots > 0,
+                )
             }
-            ParkingAmenities(zone, available)
-            Button(onClick = { onOpenZone(zone.zone_id) }, modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
-                shape = RoundedCornerShape(16.dp)) {
+            Text(stringResource(R.string.explore_zones_and_spaces), style = MaterialTheme.typography.titleSmall)
+            facility.zones.forEach { zone ->
+                ZoneCard(zone, facility.availabilityByZone[zone.zone_id] ?: 0, onOpenZone)
+            }
+            if (favoriteRequest) {
+                Text(stringResource(R.string.explore_saving_favorite), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZoneCard(zone: ParkingZone, available: Int, onOpenZone: (String) -> Unit) {
+    Surface(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(zone.name, style = MaterialTheme.typography.titleSmall)
+                    Text(zone.location, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(money(zone.hourly_price), color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleSmall)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                StatusBadge(
+                    if (available > 0) stringResource(R.string.explore_spots, available)
+                    else stringResource(R.string.explore_no_spots),
+                    positive = available > 0,
+                )
+                if (zone.amenities.contains("COVERED")) StatusBadge(stringResource(R.string.driver_covered))
+                if (zone.amenities.contains("EV")) StatusBadge(stringResource(R.string.driver_ev))
+                Spacer(Modifier.weight(1f))
+            }
+            Button(
+                onClick = { onOpenZone(zone.zone_id) },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+            ) {
                 Text(stringResource(R.string.explore_view_parking))
             }
-        }
-    }
-}
-
-@Composable
-private fun ParkingAmenities(zone: ParkingZone, available: Int) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth < 300.dp) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                itemVerticalAlignment = Alignment.CenterVertically) {
-                AmenityChips(zone, available)
-                // Heart saves the parking: it appears on the Saved chip.
-                FavoriteButton(FavoriteRepository.is_saved(zone.zone_id),
-                    onClick = { FavoriteRepository.toggle(zone.zone_id) })
-            }
-        } else {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                AmenityChips(zone, available)
-                Spacer(Modifier.weight(1f))
-                // Heart saves the parking: it appears on the Saved chip.
-                FavoriteButton(FavoriteRepository.is_saved(zone.zone_id),
-                    onClick = { FavoriteRepository.toggle(zone.zone_id) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun AmenityChips(zone: ParkingZone, available: Int) {
-    if (available > 0) {
-        StatusBadge(stringResource(R.string.explore_spots, available))
-    } else {
-        StatusBadge(stringResource(R.string.explore_no_spots), positive = false)
-    }
-    if (zone.amenities.contains("COVERED")) {
-        FilterChip(false, {}, { Text(stringResource(R.string.driver_covered)) })
-    }
-    if (zone.amenities.contains("EV")) {
-        FilterChip(false, {}, { Text(stringResource(R.string.driver_ev)) })
-    }
-}
-
-@Composable
-private fun ParkingMarker(price: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    Surface(onClick = onClick, modifier = modifier.size(82.dp, 36.dp), shape = RoundedCornerShape(12.dp),
-        color = if (selected) DriverAvailable else MaterialTheme.colorScheme.surfaceContainerHigh,
-        border = BorderStroke(1.dp, if (selected) DriverAvailable else MaterialTheme.colorScheme.outline)) {
-        Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.explore_parking_marker), style = MaterialTheme.typography.titleMedium,
-                color = if (selected) MaterialTheme.colorScheme.onPrimary else DriverAvailable)
-            Text(price, style = MaterialTheme.typography.labelSmall,
-                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
         }
     }
 }

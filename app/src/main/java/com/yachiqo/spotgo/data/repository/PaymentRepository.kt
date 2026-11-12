@@ -1,8 +1,6 @@
 package com.yachiqo.spotgo.data.repository
 
 import com.yachiqo.spotgo.data.local.SpotGoDatabase
-import com.yachiqo.spotgo.data.remote.ApiResult
-import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.data.model.AdditionalCharge
 import com.yachiqo.spotgo.data.model.AdjustmentView
 import com.yachiqo.spotgo.data.model.BalanceStatus
@@ -34,16 +32,6 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.abs
-
-/** Outcome of sending a billing document to the registered e-mail (US21). */
-sealed interface EmailSendResult {
-    /** The backend accepted the send to [email]; the document is marked. */
-    data class Sent(val email: String) : EmailSendResult
-    /** SPOTGO_API_BASE_URL is not set — the feature waits for the backend. */
-    data object BackendMissing : EmailSendResult
-    /** The backend answered an error (or the transport failed). */
-    data class Failed(val reason: String) : EmailSendResult
-}
 
 /**
  * In-memory Payments & Billing service (24-bounded-4) of the demo while the
@@ -322,42 +310,6 @@ object PaymentRepository {
     private fun set_document_flag(document_id: String, update: (BillingDocument) -> BillingDocument) {
         val index = SpotGoDatabase.billing_documents.indexOfFirst { it.document_id == document_id }
         if (index >= 0) SpotGoDatabase.billing_documents[index] = update(SpotGoDatabase.billing_documents[index])
-    }
-
-    /**
-     * US21 scenario 2 — sends the document to the e-mail of the registered
-     * account through the backend, with the same summary shown on screen
-     * (subject + body built by the caller from the current format).
-     *
-     * TODO(backend): POST /api/v1/billingDocuments/{documentId}/email with
-     * `{ "email", "subject", "body" }`. The path is a placeholder — the
-     * sprint-1 document does not define an e-mail endpoint yet; confirm it
-     * with the API contract. Until SPOTGO_API_BASE_URL is set the call
-     * returns BackendMissing and nothing is marked as sent.
-     */
-    fun send_document_by_email(document_id: String, subject: String, body: String): EmailSendResult {
-        // Every registered Driver has an e-mail (credentials or Google).
-        val email = AuthRepository.current_profile()?.email
-            ?: return EmailSendResult.Failed("no-recipient")
-        if (!SpotGoApi.is_configured()) return EmailSendResult.BackendMissing
-        val json = buildString {
-            append('{')
-            append("\"email\":").append(SpotGoApi.quote(email)).append(',')
-            append("\"subject\":").append(SpotGoApi.quote(subject)).append(',')
-            append("\"body\":").append(SpotGoApi.quote(body))
-            append('}')
-        }
-        return when (val result = SpotGoApi.post("/api/v1/billingDocuments/$document_id/email", json)) {
-            is ApiResult.Success ->
-                if (result.status in 200..299) {
-                    mark_emailed(document_id)
-                    EmailSendResult.Sent(email)
-                } else {
-                    EmailSendResult.Failed("HTTP ${result.status}")
-                }
-            ApiResult.NotConfigured -> EmailSendResult.BackendMissing
-            is ApiResult.Failure -> EmailSendResult.Failed(result.reason)
-        }
     }
 
     /**
@@ -680,7 +632,7 @@ object PaymentRepository {
         } else {
             parseTimestamp(iso).toLocalDate()
         }
-        return date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.US))
+        return date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault()))
     }
 
     /** "29 Sep" date used by the documents list (mockup 14). */
@@ -690,6 +642,6 @@ object PaymentRepository {
         } else {
             parseTimestamp(iso).toLocalDate()
         }
-        return date.format(DateTimeFormatter.ofPattern("d MMM", Locale.US))
+        return date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
     }
 }

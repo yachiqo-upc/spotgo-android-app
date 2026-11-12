@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="explore_no_match">Ninguna zona de estacionamiento coincide con tu búsqueda o filtros.</string>
+    <string name="explore_no_spots">No hay espacios disponibles</string>
+    <string name="reserve_spot_selector_title">Selecciona un espacio disponible</string>
+    <string name="reserve_spot_selector_hint">Solo se muestran los espacios libres de esta zona.</string>
+    <string name="reserve_spot_none">No hay espacios disponibles</string>
+    <string name="reserve_review_title">Revisar y pagar</string>
+    <string name="reserve_amount">Importe</string>
+    <string name="reserve_pay">Pagar %1$s</string>
+    <string name="reserve_processing">Procesando pago…</string>
+    <string name="spot_type_standard">Estándar</string>
+    <string name="spot_type_accessible">Accesible</string>
+    <string name="zone_tomorrow">Mañana</string>
+    <string name="reserve_no_vehicle_field">No hay vehículos registrados</string>
+    <string name="duration_1">1 hora</string>
+    <string name="duration_2">2 horas</string>
+    <string name="duration_3">3 horas</string>
+    <string name="duration_4">4 horas</string>
+    <string name="reserve_no_vehicle_title">Registra un vehículo primero</string>
+    <string name="reserve_no_vehicle_message">Necesitas un vehículo registrado y vinculado a tu perfil para reservar un espacio.</string>
+    <string name="reserve_no_vehicle_action">Mis vehículos</string>
+    <string name="reserve_zone_full_message">Esta zona no tiene espacios libres en este momento. Vuelve a consultar más tarde o elige otra zona.</string>
+    <string name="reserve_vehicle_busy_title">Vehículo en uso</string>
+    <string name="reserve_vehicle_busy_message">Este vehículo ya tiene una reserva activa. Selecciona otro vehículo o espera a que finalice la reserva actual.</string>
+    <string name="reserve_spot_taken_title">El espacio ya no está disponible</string>
+    <string name="reserve_spot_taken_message">Alguien ocupó este espacio antes de confirmar tu reserva. Elige otro espacio.</string>
+    <string name="reserve_past_time_title">La hora de inicio ya pasó</string>
+    <string name="reserve_past_time_message">SpotGo usa la hora de Perú. Elige una fecha y una hora de inicio posteriores a la hora actual.</string>
+    <string name="reserve_past_time_action">Cambiar fecha</string>
+    <string name="reserve_vehicle_sheet_title">Elige tu vehículo</string>
+    <string name="reserve_vehicle_sheet_hint">Tu selección se guardará en esta reserva.</string>
+    <string name="reserve_vehicle_selected">Vehículo seleccionado</string>
+    <string name="reserve_add_vehicle">+ Agregar vehículo</string>
+    <string name="reserve_review_heading">Revisar y pagar</string>
+    <string name="reserve_review_period">%1$s · %2$s–%3$s</string>
+    <string name="reserve_review_held">%1$s · El espacio se reservará temporalmente.</string>
+    <string name="reserve_review_requires_approval">La confirmación requiere que se apruebe el pago.</string>
+    <string name="reserve_review_total">Total %1$s</string>
+    <string name="reserve_review_payment_method">Visa •••• 4242 · PEN</string>
+    <string name="reserve_confirm_payment">Confirmar pago</string>
+    <string name="reserve_change_payment_method">Cambiar método de pago</string>
+</resources>

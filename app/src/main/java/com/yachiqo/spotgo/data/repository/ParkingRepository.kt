@@ -16,6 +16,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
@@ -345,8 +346,8 @@ object ParkingRepository {
     )
 
     internal fun resolve_start(date_label: String, start_label: String): LocalDateTime {
-        val day = when (date_label) {
-            "Tomorrow" -> PeruClock.today().plusDays(1)
+        val day = when (date_label.lowercase(Locale.ROOT)) {
+            "tomorrow", "mañana" -> PeruClock.today().plusDays(1)
             else -> PeruClock.today()
         }
         return LocalDateTime.of(day, LocalTime.ofSecondOfDay(parseClock(start_label) * 60L))
@@ -379,7 +380,8 @@ internal fun formatClock(totalMinutes: Int): String =
 
 /** Accepts both local timestamps (start_at) and instant seeds ("…Z"). */
 internal fun parseTimestamp(iso: String): LocalDateTime =
-    LocalDateTime.parse(if (iso.endsWith("Z")) iso.dropLast(1) else iso)
+    runCatching { java.time.Instant.parse(iso).atZone(ZoneId.of("America/Lima")).toLocalDateTime() }
+        .getOrElse { LocalDateTime.parse(iso) }
 
 /** ISO timestamp → "10:30 AM". */
 internal fun isoClock(iso: String): String =
@@ -388,10 +390,12 @@ internal fun isoClock(iso: String): String =
 /** ISO timestamp → "Today" / "Tomorrow" / "Nov 7" (Peru is the reference). */
 internal fun isoDateLabel(iso: String): String {
     val date = parseTimestamp(iso).toLocalDate()
+    val locale = Locale.getDefault()
+    val spanish = locale.language.equals("es", ignoreCase = true)
     return when (date) {
-        PeruClock.today() -> "Today"
-        PeruClock.today().plusDays(1) -> "Tomorrow"
-        else -> date.format(DateTimeFormatter.ofPattern("MMM d", Locale.US))
+        PeruClock.today() -> if (spanish) "Hoy" else "Today"
+        PeruClock.today().plusDays(1) -> if (spanish) "Mañana" else "Tomorrow"
+        else -> date.format(DateTimeFormatter.ofPattern(if (spanish) "d MMM" else "MMM d", locale))
     }
 }
 
@@ -431,7 +435,7 @@ internal val START_TIME_OPTIONS: List<String> =
  * times already passed in Peru (America/Lima) are removed from the list.
  */
 internal fun availableStartOptions(date_label: String): List<String> {
-    if (date_label == "Tomorrow") return START_TIME_OPTIONS
+    if (date_label.lowercase(Locale.ROOT) in setOf("tomorrow", "mañana")) return START_TIME_OPTIONS
     val nowMinutes = PeruClock.minutesOfDay()
     return START_TIME_OPTIONS.filter { parseClock(it) > nowMinutes }
 }

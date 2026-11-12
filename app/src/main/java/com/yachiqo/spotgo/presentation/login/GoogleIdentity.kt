@@ -52,9 +52,16 @@ private data class IdTokenClaims(
  * issuer, audience) before a session is issued — US09 scenario 3.
  */
 object GoogleIdentity {
+    private val webClientId: String
+        get() {
+            val testOverride = if (BuildConfig.DEBUG) {
+                runCatching { java.lang.System.getProperty("spotgo.test.google.web.client.id") }.getOrNull()
+            } else null
+            return testOverride ?: BuildConfig.SPOTGO_GOOGLE_WEB_CLIENT_ID
+        }
 
     /** True when a Google web client id has been configured for this build. */
-    fun isConfigured(): Boolean = BuildConfig.SPOTGO_GOOGLE_WEB_CLIENT_ID.isNotBlank()
+    fun isConfigured(): Boolean = webClientId.isNotBlank()
 
     /** Opens the Google account sheet and returns the id token of the user. */
     suspend fun signIn(context: Context): GoogleSignInResult {
@@ -62,7 +69,7 @@ object GoogleIdentity {
         return try {
             val option = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(BuildConfig.SPOTGO_GOOGLE_WEB_CLIENT_ID)
+                .setServerClientId(webClientId)
                 .build()
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(option)

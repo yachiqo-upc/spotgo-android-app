@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="register_title">Crea tu cuenta de conductor</string>
+    <string name="register_intro">Reserva espacios y paga desde tu teléfono.</string>
+    <string name="register_first_name">Nombre</string>
+    <string name="register_first_name_placeholder">Ingresa tu nombre</string>
+    <string name="register_last_name">Apellido</string>
+    <string name="register_last_name_placeholder">Ingresa tu apellido</string>
+    <string name="register_phone">Teléfono</string>
+    <string name="register_phone_placeholder">Ingresa tu número de teléfono</string>
+    <string name="register_password_placeholder">8 caracteres o más, con mayúscula, minúscula, número y símbolo</string>
+    <string name="register_terms">Acepto los Términos y la Política de privacidad</string>
+    <string name="register_existing_account">¿Ya tienes una cuenta?</string>
+    <string name="register_verify_title">Verifica tu correo electrónico</string>
+    <string name="register_verify_intro">Enviamos un código de 6 dígitos a %1$s. Ingrésalo para crear tu cuenta.</string>
+    <string name="register_verify_code">Tu código de verificación es %1$s.</string>
+    <string name="register_verify_resend">Enviar un código nuevo</string>
+    <string name="register_verify_back">Editar formulario</string>
+    <string name="register_sending">Espera un momento…</string>
+    <string name="register_api_error_title">No se pudo conectar con SpotGo</string>
+    <string name="register_api_error_message">El servicio de verificación no está disponible. Revisa SPOTGO_API_BASE_URL en local.properties e inténtalo de nuevo.</string>
+    <string name="register_api_error_tag">Backend no disponible</string>
+</resources>

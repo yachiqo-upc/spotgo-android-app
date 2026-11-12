@@ -9,6 +9,7 @@
     <string name="zone_available_spots">spots available</string>
     <string name="zone_closing_time">11:00 PM</string>
     <string name="zone_open_until">open until</string>
+    <string name="zone_hours_unavailable">Not provided</string>
     <string name="zone_accessible">Accessible</string>
     <string name="zone_reserve_title">Reserve this zone</string>
     <string name="zone_vehicle">Vehicle</string>
@@ -23,5 +24,14 @@
     <string name="zone_total_value">S/ 16.00</string>
     <string name="zone_plan_discount">Plan discount (%1$d%%)</string>
     <string name="zone_continue">Continue</string>
+    <string name="zone_backend_data_error">Vehicles, payment methods, or subscription data could not be loaded from SpotGo.</string>
+    <string name="zone_catalog_loading">Loading parking-zone details from SpotGo…</string>
+    <string name="zone_backend_catalog_error">Parking-zone details could not be loaded from SpotGo.</string>
+    <string name="zone_not_found">This parking zone is not available in SpotGo. Return to Explore and try again.</string>
     <string name="zone_dropdown">⌄</string>
+    <string name="zone_availability_check_error">Could not check availability with the backend.</string>
+    <string name="zone_create_reservation_error">Could not create the reservation. Check availability, your vehicle, and any outstanding balance.</string>
+    <string name="zone_payment_method_unavailable_title">Payment method unavailable</string>
+    <string name="zone_payment_method_unavailable_message">There is no payment method on this account. Add a simulated method in Payments before reserving. No real card details or charges are used.</string>
+    <string name="zone_payment_failed_title">Payment could not be completed</string>
 </resources>

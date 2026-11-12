@@ -115,7 +115,7 @@ class AuthRepositoryTest {
             last_name = "Torres",
             phone = "+51 987 654 321",
             email = email,
-            password = "Secret2026",
+            password = "Secret2026!",
             accepted_terms = true,
         )
         assertTrue(result is AuthResult.Success)
@@ -124,18 +124,18 @@ class AuthRepositoryTest {
         assertEquals(ProfileType.DRIVER, AuthRepository.current_profile()?.profile_type)
 
         assertTrue(SpotGoDatabase.accounts.any { it.email == email && it.status == AccountStatus.ACTIVE })
-        assertTrue(SpotGoDatabase.credentials.any { it.secret_hash == sha256("Secret2026") })
+        assertTrue(SpotGoDatabase.credentials.any { it.secret_hash == sha256("Secret2026!") })
         assertTrue(SpotGoDatabase.profiles.any { it.email == email })
 
         // The account can be used right away.
         AuthRepository.sign_out()
-        assertTrue(AuthRepository.sign_in(email, "Secret2026", true) is AuthResult.Success)
+        assertTrue(AuthRepository.sign_in(email, "Secret2026!", true) is AuthResult.Success)
     }
 
     @Test
     fun registerRejectsAnInvalidForm() {
         val email = uniqueEmail()
-        val valid = Triple("+51 987 654 321", email, "Secret2026")
+        val valid = Triple("+51 987 654 321", email, "Secret2026!")
 
         val missingName = AuthRepository.register("", "Torres", valid.first, valid.second, valid.third, true)
         assertEquals(AuthError.INVALID_FORM, failure(missingName))
@@ -149,10 +149,22 @@ class AuthRepositoryTest {
         val shortPassword = AuthRepository.register("Ana", "Torres", valid.first, valid.second, "short", true)
         assertEquals(AuthError.INVALID_FORM, failure(shortPassword))
 
+        val noSymbolPassword = AuthRepository.register("Ana", "Torres", valid.first, valid.second, "Secret2026", true)
+        assertEquals(AuthError.INVALID_FORM, failure(noSymbolPassword))
+
         val withoutTerms = AuthRepository.register("Ana", "Torres", valid.first, valid.second, valid.third, false)
         assertEquals(AuthError.INVALID_FORM, failure(withoutTerms))
 
         assertFalse(SpotGoDatabase.accounts.any { it.email == valid.second })
+    }
+
+    @Test
+    fun passwordPolicyMatchesBackendRequirements() {
+        assertTrue(AuthRepository.isPasswordValid("Secret2026!"))
+        assertFalse(AuthRepository.isPasswordValid("secret2026!"))
+        assertFalse(AuthRepository.isPasswordValid("SECRET2026!"))
+        assertFalse(AuthRepository.isPasswordValid("SecretPass!"))
+        assertFalse(AuthRepository.isPasswordValid("Secret2026"))
     }
 
     @Test
@@ -162,7 +174,7 @@ class AuthRepositoryTest {
             last_name = "Driver",
             phone = "+51 911 111 111",
             email = "brigitte.carhuaz@example.com",
-            password = "Secret2026",
+            password = "Secret2026!",
             accepted_terms = true,
         )
         assertEquals(AuthError.DUPLICATE_EMAIL, failure(result))
@@ -181,13 +193,13 @@ class AuthRepositoryTest {
             last_name = "Torres",
             phone = "+51 987 654 321",
             email = email,
-            password = "Secret2026",
+            password = "Secret2026!",
             accepted_terms = true,
         )
         assertTrue(sent is VerificationResult.CodeSent)
         // No SPOTGO_API_BASE_URL in the demo build: there is no service to
         // e-mail the code, so the UI shows it (demo mode).
-        val code = (sent as VerificationResult.CodeSent).demo_code
+        val code = (sent as VerificationResult.CodeSent).displayed_code
         assertNotNull("the demo build must surface the code", code)
         assertTrue(code!!.matches(Regex("^[0-9]{6}$")))
         assertEquals(email, AuthRepository.pending_verification_email())
@@ -202,7 +214,7 @@ class AuthRepositoryTest {
         // "Send a new code" regenerates it.
         val resent = AuthRepository.resend_email_verification()
         assertTrue(resent is VerificationResult.CodeSent)
-        val newCode = (resent as VerificationResult.CodeSent).demo_code
+        val newCode = (resent as VerificationResult.CodeSent).displayed_code
         assertNotNull(newCode)
         assertTrue(newCode!!.matches(Regex("^[0-9]{6}$")))
 
@@ -211,18 +223,18 @@ class AuthRepositoryTest {
         assertTrue(confirmed is AuthResult.Success)
         assertTrue(SpotGoDatabase.accounts.any { it.email == email })
         assertEquals(email, AuthRepository.current_profile()?.email)
-        assertNull(AuthRepository.pending_demo_code())
+        assertNull(AuthRepository.pending_verification_code())
         assertNull(AuthRepository.pending_verification_email())
     }
 
     @Test
     fun cancellingTheVerificationDropsThePendingRegistration() {
         val email = uniqueEmail()
-        AuthRepository.begin_email_verification("Ana", "Torres", "+51 987 654 321", email, "Secret2026", true)
-        assertNotNull(AuthRepository.pending_demo_code())
+        AuthRepository.begin_email_verification("Ana", "Torres", "+51 987 654 321", email, "Secret2026!", true)
+        assertNotNull(AuthRepository.pending_verification_code())
 
         AuthRepository.cancel_email_verification()
-        assertNull(AuthRepository.pending_demo_code())
+        assertNull(AuthRepository.pending_verification_code())
         assertNull(AuthRepository.pending_verification_email())
         val confirm = AuthRepository.confirm_email_verification("123456")
         assertEquals(AuthError.INVALID_TOKEN, failure(confirm))
@@ -235,7 +247,7 @@ class AuthRepositoryTest {
         assertEquals(AuthError.INVALID_FORM, failure(invalid))
 
         val duplicated = AuthRepository.begin_email_verification(
-            "Ana", "Torres", "+51 987 654 321", "brigitte.carhuaz@example.com", "Secret2026", true,
+            "Ana", "Torres", "+51 987 654 321", "brigitte.carhuaz@example.com", "Secret2026!", true,
         )
         assertEquals(AuthError.DUPLICATE_EMAIL, failure(duplicated))
     }
@@ -253,7 +265,7 @@ class AuthRepositoryTest {
     @Test
     fun passwordResetFollowsRequestVerifyAndReset() {
         val email = uniqueEmail()
-        assertTrue(AuthRepository.register("Ana", "Torres", "+51 987 654 321", email, "Secret2026", true) is AuthResult.Success)
+        assertTrue(AuthRepository.register("Ana", "Torres", "+51 987 654 321", email, "Secret2026!", true) is AuthResult.Success)
         AuthRepository.sign_out()
 
         val sent = AuthRepository.request_password_reset(email)
@@ -271,16 +283,19 @@ class AuthRepositoryTest {
         val tooShort = AuthRepository.reset_password(email, token, "short")
         assertEquals(AuthError.INVALID_FORM, (tooShort as ResetResult.Failure).error)
 
-        val reset = AuthRepository.reset_password(email, token, "NewPass2026")
+        val noSymbol = AuthRepository.reset_password(email, token, "NewPass2026")
+        assertEquals(AuthError.INVALID_FORM, (noSymbol as ResetResult.Failure).error)
+
+        val reset = AuthRepository.reset_password(email, token, "NewPass2026!")
         assertTrue(reset is ResetResult.Success)
 
-        assertTrue(AuthRepository.sign_in(email, "Secret2026", false) is AuthResult.Failure)
-        assertTrue(AuthRepository.sign_in(email, "NewPass2026", false) is AuthResult.Success)
+        assertTrue(AuthRepository.sign_in(email, "Secret2026!", false) is AuthResult.Failure)
+        assertTrue(AuthRepository.sign_in(email, "NewPass2026!", false) is AuthResult.Success)
     }
 
     @Test
     fun resetPasswordWithAnUnknownAccountIsRejected() {
-        val result = AuthRepository.reset_password(uniqueEmail(), "123456", "NewPass2026")
+        val result = AuthRepository.reset_password(uniqueEmail(), "123456", "NewPass2026!")
         assertTrue(result is ResetResult.Failure)
         assertEquals(AuthError.ACCOUNT_NOT_FOUND, (result as ResetResult.Failure).error)
     }

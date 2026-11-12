@@ -1,25 +1,50 @@
 <resources>
-    <!-- Payments tab (mockup 08) -->
+    <!-- Payments tab (backend data) -->
     <string name="payments_subtitle">Manage payment methods and parking charges.</string>
     <string name="payments_balance">Outstanding balance</string>
-    <string name="payments_balance_value">S/ 0.00</string>
+    <string name="payments_balance_value">—</string>
     <string name="payments_up_to_date">Up to date</string>
     <string name="payments_pending">Pending</string>
     <string name="payments_methods">Payment methods</string>
-    <string name="payments_card">Visa •••• 4242</string>
-    <string name="payments_card_details">Expires 08/29 · Default</string>
+    <string name="payments_card">Payment method</string>
+    <string name="payments_card_details">Tokenized payment method</string>
+    <string name="payments_no_method">No tokenized payment method</string>
+    <string name="payments_method_not_registered">No payment method is registered on this account.</string>
+    <string name="payments_expiration">Expires %1$02d/%2$d</string>
     <string name="payments_add_method">Add payment method</string>
+    <string name="payments_method_add_unavailable">The simulated payment method could not be saved.</string>
+    <string name="payments_tokenization_notice">Test mode: these are simulated methods only. No real card details or charges are used.</string>
+    <string name="payments_simulated_method_help">Add a test card reference. No real card number or security code is collected. Ending in 4242 approves, 0000 rejects, and 1111 stays pending.</string>
+    <string name="payments_card_brand">Card brand</string>
+    <string name="payments_card_brands_hint">visa, mastercard, amex, or discover</string>
+    <string name="payments_last_four">Last four digits</string>
+    <string name="payments_add_method_confirm">Add</string>
+    <string name="payments_cancel">Cancel</string>
+    <string name="payments_favorite">Favorite</string>
+    <string name="payments_set_favorite">Set favorite</string>
+    <string name="payments_method_added">Simulated payment method saved.</string>
+    <string name="payments_favorite_updated">Favorite payment method updated.</string>
+    <string name="payments_method_save_failed">Payment method could not be saved. Check the backend connection and card details.</string>
     <string name="payments_transactions">Recent transactions</string>
     <string name="payments_see_all">See all</string>
     <string name="payments_chevron">›</string>
     <string name="payments_no_transactions">No transactions yet.</string>
     <string name="payments_no_receipt">This transaction has no receipt yet.</string>
+    <string name="payments_no_balance">No outstanding balance</string>
+    <string name="payments_loading">Loading billing data from SpotGo…</string>
+    <string name="payments_backend_error">Billing data could not be loaded from SpotGo. No local payment data is shown.</string>
+    <string name="payments_reservation">Parking reservation</string>
+    <string name="payments_subscription">Subscription</string>
+    <string name="payments_additional_charge">Additional charge</string>
+    <string name="payments_operation">Payment</string>
 
     <!-- Outstanding balance (mockup 38, US19) -->
     <string name="balance_title">Outstanding balance</string>
-    <string name="balance_charge_failed">Additional charge failed</string>
+    <string name="balance_charge_failed">Outstanding additional charge</string>
     <string name="balance_pending">Pending</string>
     <string name="balance_charge_line">Additional charge · %1$s</string>
+    <string name="balance_total_open">Total outstanding</string>
+    <string name="balance_open_count">%1$d open balance(s)</string>
     <string name="balance_payment_method">Payment method</string>
     <string name="balance_change">Change</string>
     <string name="balance_notice_title">Outstanding balance</string>
@@ -29,6 +54,14 @@
     <string name="balance_processing">Processing payment…</string>
     <string name="balance_paid_notice">Additional charge paid</string>
     <string name="balance_empty">There is no outstanding balance.</string>
+    <string name="balance_backend_error">The outstanding balance could not be loaded from SpotGo. No local balance is shown.</string>
+    <string name="balance_charge_unavailable">The backend balance has no matching charge. Payment is unavailable.</string>
+    <string name="balance_select_method_hint">Select a tokenized payment method registered on your account.</string>
+    <string name="balance_tokenization_notice">Add a simulated payment method in Payments before paying this balance. No real card details or charges are used.</string>
+    <string name="balance_pay">Pay balance</string>
+    <string name="balance_check_payment">Check payment status</string>
+    <string name="balance_payment_status">Payment status: %1$s</string>
+    <string name="balance_payment_status_prefix">Payment status:</string>
     <string name="balance_select_token">Choose a payment method</string>
 
     <!-- Receipts &amp; invoices (mockup 14, US21) -->
@@ -40,14 +73,17 @@
     <string name="receipts_filter_invoices">Invoices</string>
     <string name="receipts_row_receipt">%1$s · Receipt %2$s</string>
     <string name="receipts_row_invoice">%1$s · Invoice %2$s</string>
-    <string name="receipts_need_invoice">Need an invoice?</string>
-    <string name="receipts_need_invoice_message">Select a transaction to review its receipt or invoice.</string>
+    <string name="receipts_need_invoice">Informational documents</string>
+    <string name="receipts_need_invoice_message">These documents are informational and are not tax receipts or invoices.</string>
     <string name="receipts_empty">No documents yet.</string>
+    <string name="receipts_loading">Loading documents from SpotGo…</string>
+    <string name="receipts_load_error">Documents could not be loaded from SpotGo. No local documents are shown.</string>
 
     <!-- Receipt / invoice detail (mockup 40, US21) -->
     <string name="document_title">Receipt / invoice detail</string>
     <string name="document_download">Download PDF</string>
     <string name="document_send_email">Send by email</string>
+    <string name="document_send_reservation_email">Send reservation receipt to account email</string>
     <string name="document_downloaded">PDF saved to Downloads/SpotGo</string>
     <string name="document_emailed">Receipt sent to %1$s</string>
     <string name="document_adjustments">Adjustments</string>
@@ -55,6 +91,23 @@
     <string name="document_email_failed">The e-mail could not be sent.</string>
     <string name="document_email_sending">Sending e-mail…</string>
     <string name="document_email_backend_missing">Sending by e-mail needs the SpotGo backend (SPOTGO_API_BASE_URL is not configured in local.properties yet).</string>
+    <string name="document_loading">Loading this document from SpotGo…</string>
+    <string name="document_load_error">This billing document could not be loaded from SpotGo.</string>
+    <string name="document_email_unavailable">Email delivery for billing documents is not available in the backend. No email was sent.</string>
+    <string name="document_not_fiscal">Informational document only. This is not a tax receipt or invoice.</string>
+    <string name="document_reservation_emailed">The informational reservation receipt was sent to your account email.</string>
+    <string name="document_payment_method">Payment method</string>
+    <string name="document_no_payment_method">Payment method unavailable</string>
+    <string name="document_payment">Payment</string>
+    <string name="document_operation">Operation</string>
+    <string name="document_parking_zone">Parking zone</string>
+    <string name="document_reservation">Reservation</string>
+    <string name="document_spot">Parking spot</string>
+    <string name="document_subscription">Subscription</string>
+    <string name="document_charge">Additional charge</string>
+    <string name="document_total_paid">Total paid</string>
+    <string name="document_refund">Refunds completed</string>
+    <string name="document_outstanding">Open balance</string>
 
     <!-- Outstanding balance blocks new reservations (US19 scenario 6) -->
     <string name="reserve_balance_blocked_title">Outstanding balance</string>
