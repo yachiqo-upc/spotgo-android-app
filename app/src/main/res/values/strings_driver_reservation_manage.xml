@@ -14,6 +14,13 @@
     <string name="details_spot">Spot</string>
     <string name="details_spot_reserved">Reserved parking spot</string>
     <string name="details_total">Total</string>
+    <string name="remote_reservation_identifier">Reservation ID</string>
+    <string name="remote_reservation_cancel_action">Cancel reservation</string>
+    <string name="remote_reservation_cancel_title">Cancel reservation?</string>
+    <string name="remote_reservation_cancel_message">This reservation will be cancelled in SpotGo. Refund processing follows the payment provider and may be handled separately.</string>
+    <string name="remote_reservation_cancelled">Reservation cancelled in SpotGo.</string>
+    <string name="remote_reservation_action_error">SpotGo could not update this reservation. Check your connection and try again.</string>
+    <string name="remote_reservation_actions_pending">Editing, extending and digital receipts are not yet available for this backend reservation.</string>
     <!-- UI-only payment label (the payments table arrives in Part 5 / US19). -->
     <string name="details_paid_visa">Paid with Visa •••• 4242</string>
     <string name="details_refunded_visa">Refunded to Visa •••• 4242</string>
@@ -49,6 +56,27 @@
     <string name="extend_pay">Pay %1$s &amp; extend</string>
     <string name="extend_back">Back</string>
 
+    <!-- Driver extension flow, backed by a linked reservation segment. -->
+    <string name="remote_extension_action">Extend reservation</string>
+    <string name="remote_extension_title">Extend your reservation</string>
+    <string name="remote_extension_end_date">End date</string>
+    <string name="remote_extension_end_time">End time</string>
+    <string name="remote_extension_end_after_current">Choose an end time after the current reservation ends.</string>
+    <string name="remote_extension_check_availability">Check availability</string>
+    <string name="remote_extension_checking">Checking availability…</string>
+    <string name="remote_extension_same_spot_available">Your current parking spot is available for this extension.</string>
+    <string name="remote_extension_same_spot_unavailable">Your current spot is unavailable for this interval. Choose another spot at this facility.</string>
+    <string name="remote_extension_alternative_move">You will need to move your vehicle to the selected spot when the current reservation ends.</string>
+    <string name="remote_extension_no_spots">There are no available spots at this facility for the selected interval.</string>
+    <string name="remote_extension_availability_error">Availability could not be checked. Please try again.</string>
+    <string name="remote_extension_payment_note">The backend calculates the price. Payment must be approved before the current reservation ends.</string>
+    <string name="remote_extension_continue">Continue to payment</string>
+    <string name="remote_extension_cancel">Cancel</string>
+    <string name="remote_extension_segments_title">Linked reservation segments</string>
+    <string name="remote_extension_root_format">Original reservation %1$s</string>
+    <string name="remote_extension_parent_format">This segment extends reservation %1$s.</string>
+    <string name="remote_extension_child_format">Extension · %1$s · %2$s · Spot %3$s</string>
+
     <!-- Edit reservation (mockup 37, US18 scenario 8) -->
     <string name="edit_title">Edit reservation</string>
     <string name="edit_back">Back to reservation details</string>
@@ -74,4 +102,34 @@
     <string name="notice_reservation_updated">Reservation updated · updated receipt generated</string>
     <string name="notice_navigation_unavailable">Google Maps is not available on this device.</string>
     <string name="notice_destination_unavailable">The parking destination is not available.</string>
+    <string name="edit_reservation_number">Reservation %1$s</string>
+    <string name="edit_current_schedule">Current: %1$s · %2$s–%3$s</string>
+    <string name="edit_current_amount">Current amount: %1$s</string>
+    <string name="edit_reschedule_deadline">Rescheduling is available until five minutes before the reservation starts.</string>
+    <string name="edit_new_schedule">New schedule: %1$s %2$s – %3$s\nThe backend will calculate the new amount and any difference. Refunds for a lower amount are requested five minutes after the last edit.</string>
+    <string name="edit_payment_method_required">A tokenized payment method is required to charge the difference.</string>
+    <string name="edit_payment_status">Payment status: %1$s</string>
+    <string name="edit_action_retry_payment">Retry difference payment</string>
+    <string name="edit_action_check_payment">Check difference payment</string>
+    <string name="edit_action_pay_difference">Pay difference</string>
+    <string name="edit_reschedule_success">Rescheduling approved and applied.</string>
+    <string name="edit_reschedule_refund_scheduled">Schedule updated. The refund will be processed after five minutes.</string>
+    <string name="edit_schedule_updated">Schedule updated.</string>
+    <string name="edit_reschedule_failed">Could not reschedule. Make sure the reservation starts in more than five minutes and the selected time is available.</string>
+    <string name="edit_processing">Processing…</string>
+    <string name="details_status_pending_payment">Payment pending</string>
+    <string name="details_action_complete_payment">Complete payment</string>
+    <string name="details_action_retry_payment">Retry payment</string>
+    <string name="details_action_check_payment">Check payment status</string>
+    <string name="details_payment_status">Payment status: %1$s</string>
+    <string name="details_download_receipt">Download informational receipt</string>
+    <string name="details_download_receipt_failed">Could not download the receipt.</string>
+    <string name="details_receipt_saved">Informational receipt saved.</string>
+    <string name="details_pdf_save_failed">Could not save the PDF.</string>
+    <string name="details_email_receipt">Email receipt to my account</string>
+    <string name="details_receipt_emailed">Receipt emailed to your account.</string>
+    <string name="details_receipt_email_failed">Could not email the receipt. The service may not be configured.</string>
+    <string name="details_extension_success">Extension approved and added to the reservation.</string>
+    <string name="details_extension_pending">The extension is awaiting payment. Check the segment in your reservations.</string>
+    <string name="details_extension_failed">Could not create the extension. Make sure the reservation is still active and try again.</string>
 </resources>

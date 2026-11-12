@@ -1,9 +1,0 @@
-<resources>
-    <string name="admin_more_organization">Lima Parking Operations S.A.C.</string>
-    <string name="admin_more_parking_zone">My parking zone</string>
-    <string name="admin_more_reports">Occupancy reports</string>
-    <string name="admin_more_guest_parking">Guest parking</string>
-    <string name="admin_infrastructure_title">Parking infrastructure</string>
-    <string name="admin_more_billing">Billing &amp; invoices</string>
-    <string name="admin_more_close">Close</string>
-</resources>

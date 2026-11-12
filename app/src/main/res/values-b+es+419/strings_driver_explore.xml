@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="explore_title">Estacionamientos cercanos</string>
+    <string name="explore_subtitle">Disponibilidad y tarifas de los operadores de estacionamiento de SpotGo.</string>
+    <string name="explore_search">Buscar zonas de estacionamiento</string>
+    <string name="explore_all">Todas</string>
+    <string name="explore_saved">Guardados</string>
+    <string name="explore_no_saved">Todavía no guardaste estacionamientos. Toca el corazón para agregarlos aquí.</string>
+    <string name="explore_last_updated">Última actualización · %1$s</string>
+    <string name="explore_refresh">↻ Actualizar</string>
+    <string name="explore_spots">%1$d espacios</string>
+    <string name="explore_view_parking">Ver estacionamiento</string>
+    <string name="explore_parking_marker">E</string>
+    <string name="explore_loading_parking">Cargando estacionamientos…</string>
+    <string name="explore_zones_and_spaces">Zonas y espacios</string>
+    <string name="explore_saving_favorite">Guardando favorito…</string>
+    <string name="explore_favorite_update_error">No se pudo actualizar este favorito de SpotGo.</string>
+    <string name="explore_map_snippet">Desde %1$s / h · %2$d zonas</string>
+    <string name="explore_map_updated">Actualizado · %1$s</string>
+    <string name="explore_backend_error">No se pudieron cargar los estacionamientos o tus favoritos. Revisa tu conexión e inténtalo de nuevo.</string>
+</resources>

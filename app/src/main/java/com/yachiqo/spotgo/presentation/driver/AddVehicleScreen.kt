@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +50,8 @@ import com.yachiqo.spotgo.data.model.VehicleType
 import com.yachiqo.spotgo.data.repository.VehicleError
 import com.yachiqo.spotgo.data.repository.VehicleRepository
 import com.yachiqo.spotgo.data.repository.VehicleResult
+import com.yachiqo.spotgo.data.repository.RemoteVehicleRepository
+import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.common.StateBottomSheet
 import com.yachiqo.spotgo.presentation.driver.components.DriverPrimaryButton
@@ -56,9 +59,12 @@ import com.yachiqo.spotgo.presentation.login.figmaFieldBounds
 import com.yachiqo.spotgo.presentation.login.loginFieldColors
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import com.yachiqo.spotgo.ui.theme.SpotGoWarning
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Bottom sheet states of the add-vehicle flow (12a duplicate / 12b invalid). */
-private enum class AddVehicleSheet { INVALID_FORM, INVALID_PLATE, DUPLICATE_PLATE }
+private enum class AddVehicleSheet { INVALID_FORM, INVALID_PLATE, DUPLICATE_PLATE, BACKEND_ERROR }
 
 /**
  * Mockup 12 — Add vehicle: plate, brand, model, colour and vehicle type with
@@ -71,13 +77,16 @@ fun AddVehicleScreen(
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // The mockup shows an example registration already typed in.
-    val plate = rememberTextFieldState(initialText = "B9R-314")
-    val make = rememberTextFieldState(initialText = "Toyota")
-    val model = rememberTextFieldState(initialText = "Yaris")
-    val color = rememberTextFieldState(initialText = "White")
+    val backendMode = SpotGoApi.is_configured()
+    // Keep mockup values only in local demo mode; backend registrations start blank.
+    val plate = rememberTextFieldState(initialText = if (backendMode) "" else "B9R-314")
+    val make = rememberTextFieldState(initialText = if (backendMode) "" else "Toyota")
+    val model = rememberTextFieldState(initialText = if (backendMode) "" else "Yaris")
+    val color = rememberTextFieldState(initialText = if (backendMode) "" else "White")
     var vehicleType by rememberSaveable { mutableStateOf(VehicleType.CAR) }
     var sheet by remember { mutableStateOf<AddVehicleSheet?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
 
     Column(
@@ -177,22 +186,39 @@ fun AddVehicleScreen(
                 label = stringResource(R.string.add_vehicle_save),
                 onClick = {
                     focusManager.clearFocus()
-                    val result = VehicleRepository.add_vehicle(
-                        plate = plate.text.toString(),
-                        make = make.text.toString(),
-                        model = model.text.toString(),
-                        color = color.text.toString(),
-                        vehicle_type = vehicleType,
-                    )
-                    when (result) {
-                        is VehicleResult.Success -> onSaved()
-                        is VehicleResult.Failure -> sheet = when (result.error) {
-                            VehicleError.INVALID_FORM -> AddVehicleSheet.INVALID_FORM
-                            VehicleError.INVALID_PLATE -> AddVehicleSheet.INVALID_PLATE
-                            VehicleError.DUPLICATE_PLATE -> AddVehicleSheet.DUPLICATE_PLATE
+                    if (!saving) scope.launch {
+                        saving = true
+                        val result = withContext(Dispatchers.IO) {
+                            if (backendMode) {
+                                RemoteVehicleRepository.addVehicle(
+                                    plate = plate.text.toString(),
+                                    make = make.text.toString(),
+                                    model = model.text.toString(),
+                                    color = color.text.toString(),
+                                )
+                            } else {
+                                VehicleRepository.add_vehicle(
+                                    plate = plate.text.toString(),
+                                    make = make.text.toString(),
+                                    model = model.text.toString(),
+                                    color = color.text.toString(),
+                                    vehicle_type = vehicleType,
+                                )
+                            }
+                        }
+                        saving = false
+                        when (result) {
+                            is VehicleResult.Success -> onSaved()
+                            is VehicleResult.Failure -> sheet = when (result.error) {
+                                VehicleError.INVALID_FORM -> AddVehicleSheet.INVALID_FORM
+                                VehicleError.INVALID_PLATE -> AddVehicleSheet.INVALID_PLATE
+                                VehicleError.DUPLICATE_PLATE -> AddVehicleSheet.DUPLICATE_PLATE
+                                VehicleError.API_ERROR -> AddVehicleSheet.BACKEND_ERROR
+                            }
                         }
                     }
                 },
+                enabled = !saving,
             )
         }
     }
@@ -229,6 +255,16 @@ fun AddVehicleScreen(
             onPrimary = { sheet = null },
             secondaryText = stringResource(R.string.vehicles_title),
             onSecondary = { sheet = null; onBack() },
+            onDismissRequest = { sheet = null },
+        )
+
+        AddVehicleSheet.BACKEND_ERROR -> StateBottomSheet(
+            title = stringResource(R.string.state_invalid_form_title),
+            message = stringResource(R.string.vehicles_backend_error),
+            primaryText = stringResource(R.string.state_action_try_again),
+            onPrimary = { sheet = null },
+            secondaryText = stringResource(R.string.state_action_close),
+            onSecondary = { sheet = null },
             onDismissRequest = { sheet = null },
         )
 

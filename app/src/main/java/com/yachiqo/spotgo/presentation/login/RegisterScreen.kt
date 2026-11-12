@@ -28,6 +28,7 @@ import com.yachiqo.spotgo.data.repository.AuthError
 import com.yachiqo.spotgo.data.repository.AuthRepository
 import com.yachiqo.spotgo.data.repository.AuthResult
 import com.yachiqo.spotgo.data.repository.VerificationResult
+import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.common.SpotGoWordmark
 import com.yachiqo.spotgo.presentation.common.StateBottomSheet
@@ -59,7 +60,7 @@ fun RegisterScreen(
     // created once the 6-digit code is confirmed).
     var step by rememberSaveable { mutableStateOf(1) }
     val code = remember { TextFieldState() }
-    var demoCode by remember { mutableStateOf<String?>(null) }
+    var displayedCode by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -162,24 +163,42 @@ fun RegisterScreen(
                                 pending = true
                                 scope.launch {
                                     // Blocking HTTP when the backend exists: off the main thread.
-                                    val result = withContext(Dispatchers.IO) {
-                                        AuthRepository.begin_email_verification(
-                                            first_name = firstName.text.toString(),
-                                            last_name = lastName.text.toString(),
-                                            phone = phone.text.toString(),
-                                            email = email.text.toString(),
-                                            password = password.text.toString(),
-                                            accepted_terms = acceptedTerms,
-                                        )
-                                    }
-                                    pending = false
-                                    when (result) {
-                                        is VerificationResult.CodeSent -> {
-                                            demoCode = result.demo_code
-                                            code.edit { replace(0, length, "") }
-                                            step = 2
+                                    if (SpotGoApi.is_configured()) {
+                                        val result = withContext(Dispatchers.IO) {
+                                            AuthRepository.register(
+                                                first_name = firstName.text.toString(),
+                                                last_name = lastName.text.toString(),
+                                                phone = phone.text.toString(),
+                                                email = email.text.toString(),
+                                                password = password.text.toString(),
+                                                accepted_terms = acceptedTerms,
+                                            )
                                         }
-                                        is VerificationResult.Failure -> authError = result.error
+                                        pending = false
+                                        when (result) {
+                                            is AuthResult.Success -> onRegistered()
+                                            is AuthResult.Failure -> authError = result.error
+                                        }
+                                    } else {
+                                        val result = withContext(Dispatchers.IO) {
+                                            AuthRepository.begin_email_verification(
+                                                first_name = firstName.text.toString(),
+                                                last_name = lastName.text.toString(),
+                                                phone = phone.text.toString(),
+                                                email = email.text.toString(),
+                                                password = password.text.toString(),
+                                                accepted_terms = acceptedTerms,
+                                            )
+                                        }
+                                        pending = false
+                                        when (result) {
+                                            is VerificationResult.CodeSent -> {
+                                                displayedCode = result.displayed_code
+                                                code.edit { replace(0, length, "") }
+                                                step = 2
+                                            }
+                                            is VerificationResult.Failure -> authError = result.error
+                                        }
                                     }
                                 }
                             }
@@ -194,15 +213,14 @@ fun RegisterScreen(
                     }
                 } else {
                     // US13 — the account is created only after this code.
-                    // Demo mode shows the code because there is no backend to e-mail it.
-                    demoCode?.let { demo ->
+                    displayedCode?.let { displayed ->
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
                             color = SpotGoAccentContainer,
                         ) {
                             Text(
-                                stringResource(R.string.register_verify_demo, demo),
+                                stringResource(R.string.register_verify_code, displayed),
                                 modifier = Modifier.padding(16.dp),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = SpotGoAccent,
@@ -257,7 +275,7 @@ fun RegisterScreen(
                                     }
                                     when (result) {
                                         is VerificationResult.CodeSent -> {
-                                            demoCode = result.demo_code
+                                            displayedCode = result.displayed_code
                                             code.edit { replace(0, length, "") }
                                         }
                                         is VerificationResult.Failure -> authError = result.error
@@ -319,7 +337,7 @@ fun RegisterScreen(
             onSecondary = { authError = null; step = 1 },
             onDismissRequest = { authError = null },
         )
-        AuthError.API_ERROR -> StateBottomSheet(
+        AuthError.API_ERROR, AuthError.PROFILE_REQUIRED -> StateBottomSheet(
             title = stringResource(R.string.register_api_error_title),
             message = stringResource(R.string.register_api_error_message),
             tag = stringResource(R.string.register_api_error_tag),

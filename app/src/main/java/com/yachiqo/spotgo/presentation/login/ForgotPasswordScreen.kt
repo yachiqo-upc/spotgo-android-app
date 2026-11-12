@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +61,9 @@ import com.yachiqo.spotgo.ui.theme.SpotGoAccentContainer
 import com.yachiqo.spotgo.ui.theme.SpotGoSuccess
 import com.yachiqo.spotgo.ui.theme.SpotGoSupportingText
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Bottom sheet states of the password-reset flow. */
 private enum class ForgotSheet { ACCOUNT_NOT_FOUND, INVALID_TOKEN, PASSWORD_MISMATCH, WEAK_PASSWORD, SUCCESS }
@@ -81,7 +85,9 @@ fun ForgotPasswordScreen(
     val newPassword = remember { TextFieldState() }
     val confirmPassword = remember { TextFieldState() }
     var sentToken by remember { mutableStateOf("") }
+    var pending by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf<ForgotSheet?>(null) }
+    val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val backToLogin = { focusManager.clearFocus(); onBackToLogin() }
 
@@ -173,16 +179,25 @@ fun ForgotPasswordScreen(
                     )
 
                     2 -> {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = SpotGoAccentContainer,
-                        ) {
+                        if (sentToken.isNotBlank()) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = SpotGoAccentContainer,
+                            ) {
+                                Text(
+                                    stringResource(R.string.forgot_password_code, sentToken),
+                                    modifier = Modifier.padding(16.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = SpotGoAccent,
+                                )
+                            }
+                        } else {
                             Text(
-                                stringResource(R.string.forgot_demo_code, sentToken),
-                                modifier = Modifier.padding(16.dp),
+                                stringResource(R.string.forgot_code_sent_backend),
+                                modifier = Modifier.fillMaxWidth(),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = SpotGoAccent,
+                                color = SpotGoSupportingText,
                             )
                         }
                         OutlinedTextField(
@@ -202,14 +217,22 @@ fun ForgotPasswordScreen(
                         ) {
                             TextButton(
                                 onClick = {
-                                    when (val result = AuthRepository.request_password_reset(email.text.toString())) {
-                                        is ResetResult.CodeSent -> {
-                                            sentToken = result.token
-                                            token.edit { replace(0, length, "") }
+                                    if (!pending) scope.launch {
+                                        pending = true
+                                        val result = withContext(Dispatchers.IO) {
+                                            AuthRepository.request_password_reset(email.text.toString())
                                         }
-                                        else -> sheet = ForgotSheet.ACCOUNT_NOT_FOUND
+                                        pending = false
+                                        when (result) {
+                                            is ResetResult.CodeSent -> {
+                                                sentToken = result.token.orEmpty()
+                                                token.edit { replace(0, length, "") }
+                                            }
+                                            else -> sheet = ForgotSheet.ACCOUNT_NOT_FOUND
+                                        }
                                     }
                                 },
+                                enabled = !pending,
                             ) { Text(stringResource(R.string.forgot_resend)) }
                             TextButton(onClick = { step = 1 }) {
                                 Text(stringResource(R.string.forgot_change_email))
@@ -255,15 +278,23 @@ fun ForgotPasswordScreen(
                     1 -> Button(
                         onClick = {
                             focusManager.clearFocus()
-                            when (val result = AuthRepository.request_password_reset(email.text.toString())) {
-                                is ResetResult.CodeSent -> {
-                                    sentToken = result.token
-                                    token.edit { replace(0, length, "") }
-                                    step = 2
+                            if (!pending) scope.launch {
+                                pending = true
+                                val result = withContext(Dispatchers.IO) {
+                                    AuthRepository.request_password_reset(email.text.toString())
                                 }
-                                else -> sheet = ForgotSheet.ACCOUNT_NOT_FOUND
+                                pending = false
+                                when (result) {
+                                    is ResetResult.CodeSent -> {
+                                        sentToken = result.token.orEmpty()
+                                        token.edit { replace(0, length, "") }
+                                        step = 2
+                                    }
+                                    else -> sheet = ForgotSheet.ACCOUNT_NOT_FOUND
+                                }
                             }
                         },
+                        enabled = !pending,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = RoundedCornerShape(16.dp),
                     ) { Text(stringResource(R.string.forgot_send_code), style = MaterialTheme.typography.bodyLarge) }
@@ -286,20 +317,29 @@ fun ForgotPasswordScreen(
                             val password = newPassword.text.toString()
                             val confirm = confirmPassword.text.toString()
                             when {
-                                password.length < 8 -> sheet = ForgotSheet.WEAK_PASSWORD
+                                !AuthRepository.isPasswordValid(password) -> sheet = ForgotSheet.WEAK_PASSWORD
                                 password != confirm -> sheet = ForgotSheet.PASSWORD_MISMATCH
-                                else -> when (
-                                    AuthRepository.reset_password(
-                                        email = email.text.toString(),
-                                        token = token.text.toString(),
-                                        new_password = password,
-                                    )
-                                ) {
-                                    is ResetResult.Success -> sheet = ForgotSheet.SUCCESS
-                                    else -> sheet = ForgotSheet.INVALID_TOKEN
+                                else -> if (!pending) scope.launch {
+                                    pending = true
+                                    val result = withContext(Dispatchers.IO) {
+                                        AuthRepository.reset_password(
+                                            email = email.text.toString(),
+                                            token = token.text.toString(),
+                                            new_password = password,
+                                        )
+                                    }
+                                    pending = false
+                                    when (result) {
+                                        is ResetResult.Success -> sheet = ForgotSheet.SUCCESS
+                                        is ResetResult.Failure -> sheet = if (result.error == AuthError.API_ERROR) {
+                                            ForgotSheet.ACCOUNT_NOT_FOUND
+                                        } else ForgotSheet.INVALID_TOKEN
+                                        is ResetResult.CodeSent -> sheet = ForgotSheet.INVALID_TOKEN
+                                    }
                                 }
                             }
                         },
+                        enabled = !pending,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = RoundedCornerShape(16.dp),
                     ) { Text(stringResource(R.string.forgot_update_password), style = MaterialTheme.typography.bodyLarge) }

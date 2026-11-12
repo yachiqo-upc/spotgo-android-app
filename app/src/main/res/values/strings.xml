@@ -1,8 +1,16 @@
 <resources>
     <string name="app_name">SpotGo</string>
+    <string name="backend_required_title">SpotGo backend required</string>
+    <string name="backend_required_message">Set SPOTGO_API_BASE_URL in local.properties and start the SpotGo backend to continue.</string>
+    <string name="fcm_channel_name">SpotGo updates</string>
+    <string name="fcm_default_title">SpotGo update</string>
+    <string name="fcm_default_body">You have a new update.</string>
     <string name="login_welcome">Welcome back</string>
     <string name="login_intro">Sign in to reserve a space, pay and get there faster.</string>
     <string name="login_sign_in">Sign in</string>
+    <string name="login_signing_in">Signing in…</string>
+    <string name="login_backend_error">SpotGo could not complete sign in. Check the backend connection and try again.</string>
+    <string name="local_network_permission_required">Allow SpotGo local network access to reach the development backend.</string>
     <string name="login_account_hint">Use your SpotGo account to continue.</string>
     <string name="login_email">Email</string>
     <string name="login_email_placeholder">you@example.com</string>
@@ -17,23 +25,18 @@
     <string name="login_action_pending">This action will be available in a future sprint.</string>
     <string name="login_preview_label">Explore the prototype</string>
     <string name="role_driver">Driver</string>
-    <string name="role_parking_admin">Parking Admin</string>
     <string name="back_to_login">Back to login</string>
     <string name="driver_explore">Explore</string>
     <string name="driver_reservations">Reservations</string>
     <string name="driver_payments">Payments</string>
     <string name="driver_profile">Profile</string>
-    <string name="admin_dashboard">Dashboard</string>
-    <string name="admin_live_map">Live map</string>
-    <string name="admin_alerts">Alerts</string>
-    <string name="admin_more">More</string>
     <string name="feature_placeholder">The next view will appear here.</string>
     <!-- State bottom sheets (Figma states) -->
     <string name="state_invalid_login_title">Couldn\'t sign you in</string>
     <string name="state_invalid_login_message">The email or password is incorrect. Check your details and try again.</string>
     <string name="state_invalid_login_tag">Invalid login</string>
     <string name="state_invalid_form_title">Check your information</string>
-    <string name="state_invalid_form_message">Complete the required fields. Use a valid email, phone number and a password of at least 8 characters.</string>
+    <string name="state_invalid_form_message">Complete the required fields. Use a valid email and phone number, and a password with at least 8 characters, an uppercase letter, a lowercase letter, a number, and a symbol.</string>
     <string name="state_invalid_form_tag">Invalid form</string>
     <string name="state_duplicate_email_title">Email already registered</string>
     <string name="state_duplicate_email_message">An account already uses this email address. Sign in or use a different email.</string>
@@ -45,20 +48,44 @@
     <string name="state_action_review_form">Review form</string>
     <string name="state_action_edit_email">Edit email</string>
     <string name="state_action_close">Close</string>
+    <string name="payment_status_pending">Pending</string>
+    <string name="payment_status_processing">Processing</string>
+    <string name="payment_status_unknown">Unknown</string>
+    <string name="payment_status_approved">Approved</string>
+    <string name="payment_status_rejected">Rejected</string>
+    <string name="payment_status_failed">Failed</string>
+    <string name="payment_status_refunded">Refunded</string>
+    <string name="payment_status_reconciliation_required">Reconciliation required</string>
+    <string name="payment_status_issued">Issued</string>
+    <string name="payment_status_cancelled">Cancelled</string>
+    <string name="payment_status_completed">Completed</string>
+    <string name="payment_status_refund_scheduled">Refund scheduled</string>
+    <string name="payment_status_refund_requested">Refund requested</string>
+    <string name="payment_status_refund_failed">Refund failed</string>
+    <string name="reservation_status_no_show">No-show</string>
+    <string name="reservation_status_overstayed">Overstayed</string>
+    <string name="reservation_status_unknown">Unknown</string>
+    <string name="document_status_unknown">Unknown</string>
+    <string name="document_type_receipt">Receipt</string>
+    <string name="document_type_invoice">Invoice</string>
+    <string name="pdf_informational_document">SpotGo - informational document</string>
+    <string name="pdf_total">Total: %1$s %2$s</string>
+    <string name="pdf_informational_disclaimer">Informational only; not a tax receipt or invoice.</string>
     <!-- Google federated sign-in (simulated, no backend) -->
     <string name="google_choose_title">Choose an account</string>
     <string name="google_choose_subtitle">to continue to SpotGo</string>
     <string name="google_use_another">Use another account</string>
-    <string name="google_demo_unavailable">Demo mode: only %1$s is available.</string>
+    <string name="google_demo_unavailable">Google sign-in is unavailable for this account. Try %1$s instead.</string>
     <!-- Google Identity (Pendiente 2 — Credential Manager) -->
     <string name="google_connecting">Connecting to Google…</string>
     <string name="google_signin_failed">Google sign-in couldn\'t be completed. Try again.</string>
-    <!-- Forgot password (3-step reset, demo token) -->
+    <!-- Forgot password (3-step reset) -->
     <string name="forgot_title">Reset your password</string>
     <string name="forgot_step1_intro">Enter the email registered to your account and we\'ll send you a 6-digit code.</string>
     <string name="forgot_step2_title">Enter the code</string>
     <string name="forgot_step2_intro">Type the 6-digit code we sent to %1$s.</string>
-    <string name="forgot_demo_code">Demo mode: your code is %1$s</string>
+    <string name="forgot_password_code">Your password reset code is %1$s.</string>
+    <string name="forgot_code_sent_backend">If an account uses this email, a password-reset code has been sent. Check your inbox.</string>
     <string name="forgot_step3_title">Create a new password</string>
     <string name="forgot_step3_intro">Choose a new password for your account. Your other sessions will be signed out.</string>
     <string name="forgot_send_code">Send code</string>
@@ -79,8 +106,8 @@
     <string name="forgot_invalid_token_tag">Invalid code</string>
     <string name="forgot_password_mismatch_title">Passwords don\'t match</string>
     <string name="forgot_password_mismatch_message">Retype the same password in both fields and try again.</string>
-    <string name="forgot_password_weak_title">Password too short</string>
-    <string name="forgot_password_weak_message">Use a password of at least 8 characters.</string>
+    <string name="forgot_password_weak_title">Password requirements not met</string>
+    <string name="forgot_password_weak_message">Use at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a symbol.</string>
     <string name="forgot_success_title">Password updated</string>
     <string name="forgot_success_message">Your password has been changed and your other sessions were signed out. Sign in with your new password.</string>
     <string name="forgot_success_tag">Password updated</string>

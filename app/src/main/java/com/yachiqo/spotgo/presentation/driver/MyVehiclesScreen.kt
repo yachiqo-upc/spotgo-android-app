@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -27,9 +28,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.data.model.Vehicle
 import com.yachiqo.spotgo.data.repository.VehicleRepository
+import com.yachiqo.spotgo.data.repository.RemoteVehicleRepository
+import com.yachiqo.spotgo.data.repository.VehicleListResult
+import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.data.repository.isoDateLabel
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.driver.components.DriverOutlineButton
@@ -52,6 +58,9 @@ import com.yachiqo.spotgo.ui.theme.SpotGoSurface
 import com.yachiqo.spotgo.ui.theme.SpotGoText
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import com.yachiqo.spotgo.ui.theme.SpotGoWarning
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Mockup 11 — My vehicles: the registered vehicles of the Driver account,
@@ -63,7 +72,27 @@ fun MyVehiclesScreen(
     onAddVehicle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val vehicles = VehicleRepository.vehicles_for_current_profile()
+    val backendMode = SpotGoApi.is_configured()
+    var remoteVehicles by remember { mutableStateOf(emptyList<Vehicle>()) }
+    var loading by remember { mutableStateOf(backendMode) }
+    var loadFailed by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf(false) }
+    var actionFailed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(backendMode) {
+        if (backendMode) {
+            loading = true
+            when (val result = withContext(Dispatchers.IO) { RemoteVehicleRepository.loadVehicles() }) {
+                is VehicleListResult.Success -> {
+                    remoteVehicles = result.vehicles
+                    loadFailed = false
+                }
+                VehicleListResult.Failure -> loadFailed = true
+            }
+            loading = false
+        }
+    }
+    val vehicles = if (backendMode) remoteVehicles else VehicleRepository.vehicles_for_current_profile()
     val defaultVehicleId = vehicles.firstOrNull()?.vehicle_id
     var detailVehicle by remember { mutableStateOf<Vehicle?>(null) }
     var confirmRemove by rememberSaveable { mutableStateOf(false) }
@@ -122,7 +151,16 @@ fun MyVehiclesScreen(
             DriverSectionTitle(stringResource(R.string.vehicles_section))
 
             DriverPanel {
-                if (vehicles.isEmpty()) {
+                if (backendMode && loading) {
+                    CircularProgressIndicator(Modifier.padding(18.dp))
+                } else if (backendMode && loadFailed) {
+                    Text(
+                        stringResource(R.string.vehicles_load_error),
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                } else if (vehicles.isEmpty()) {
                     Text(
                         stringResource(R.string.vehicles_empty),
                         modifier = Modifier.padding(16.dp),
@@ -181,10 +219,30 @@ fun MyVehiclesScreen(
             confirmRemove = confirmRemove,
             onConfirmRemove = { confirmRemove = true },
             onRemove = {
-                VehicleRepository.remove_vehicle(vehicle.vehicle_id)
-                detailVehicle = null
-                confirmRemove = false
+                if (!removing) {
+                    if (backendMode) {
+                        scope.launch {
+                            removing = true
+                            actionFailed = false
+                            val removed = withContext(Dispatchers.IO) {
+                                RemoteVehicleRepository.removeVehicle(vehicle.vehicle_id)
+                            }
+                            removing = false
+                            if (removed) {
+                                remoteVehicles = remoteVehicles.filterNot { it.vehicle_id == vehicle.vehicle_id }
+                                detailVehicle = null
+                                confirmRemove = false
+                            } else actionFailed = true
+                        }
+                    } else {
+                        VehicleRepository.remove_vehicle(vehicle.vehicle_id)
+                        detailVehicle = null
+                        confirmRemove = false
+                    }
+                }
             },
+            removing = removing,
+            actionError = if (actionFailed) stringResource(R.string.vehicles_backend_error) else null,
             onClose = {
                 if (confirmRemove) confirmRemove = false else detailVehicle = null
             },
@@ -200,6 +258,8 @@ private fun VehicleDetailSheet(
     confirmRemove: Boolean,
     onConfirmRemove: () -> Unit,
     onRemove: () -> Unit,
+    removing: Boolean,
+    actionError: String?,
     onClose: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -230,8 +290,12 @@ private fun VehicleDetailSheet(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                actionError?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
                 Button(
                     onClick = onRemove,
+                    enabled = !removing,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SpotGoError),
@@ -240,6 +304,7 @@ private fun VehicleDetailSheet(
                 }
                 OutlinedButton(
                     onClick = onClose,
+                    enabled = !removing,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                 ) {
@@ -264,6 +329,7 @@ private fun VehicleDetailSheet(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 0.6.dp)
                 Button(
                     onClick = onConfirmRemove,
+                    enabled = !removing,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SpotGoError),

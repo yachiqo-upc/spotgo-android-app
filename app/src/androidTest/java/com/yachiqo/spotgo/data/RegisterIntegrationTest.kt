@@ -97,7 +97,7 @@ class RegisterIntegrationTest {
         // US13 — the account only exists after the e-mail code, and the demo
         // mode shows the code because there is no backend to e-mail it.
         compose.waitForText("Verify your email")
-        compose.onNode(hasText("Demo mode: your code is", substring = true)).assertIsDisplayed()
+        compose.onNode(hasText("Your verification code is", substring = true)).assertIsDisplayed()
         capture("02-register-verify")
 
         // "Edit form" keeps everything typed so far.

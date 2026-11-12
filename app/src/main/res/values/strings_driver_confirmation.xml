@@ -1,24 +1,21 @@
 <resources>
-    <string name="confirmation_title">Reservation confirmed</string>
-    <string name="confirmation_success">Payment successful</string>
+    <string name="confirmation_title">Reservation confirmation</string>
+    <string name="confirmation_success">Payment approved</string>
     <string name="confirmation_check">✓</string>
-    <string name="confirmation_booking_code">Booking code</string>
-    <string name="confirmation_booking_value">#SG-4821</string>
-    <string name="confirmation_paid">Paid</string>
+    <string name="confirmation_payment_pending">Payment not confirmed</string>
+    <string name="confirmation_payment_status">Backend status: %1$s</string>
+    <string name="confirmation_load_error">Reservation details could not be loaded from SpotGo.</string>
+    <string name="confirmation_booking_code">Reservation ID</string>
     <string name="confirmation_parking_zone">Parking zone</string>
     <string name="confirmation_spot">Spot</string>
-    <string name="confirmation_spot_value">B-14</string>
+    <string name="confirmation_spot_value">Spot unavailable</string>
+    <string name="confirmation_vehicle_value">Vehicle unavailable</string>
     <string name="confirmation_time">Time</string>
-    <string name="confirmation_time_value">10:30 AM – 12:30 PM</string>
-    <string name="confirmation_vehicle_value">AJK-247</string>
-    <string name="confirmation_amount_paid">Amount paid</string>
-    <string name="confirmation_entry_title">YOUR ENTRY PASS</string>
-    <string name="confirmation_entry_hint">Show this QR at the entrance.</string>
-    <string name="confirmation_entry_booking">Booking #SG-4821</string>
-    <string name="confirmation_qr_description">Sample entry pass for booking SG-4821</string>
     <string name="confirmation_booking_dynamic">#%1$s</string>
-    <string name="confirmation_entry_booking_dynamic">Booking #%1$s</string>
-    <string name="confirmation_qr_dynamic">Sample entry pass for booking %1$s</string>
+    <string name="confirmation_qr_dynamic">Informational entry pass for reservation %1$s</string>
+    <string name="confirmation_amount_paid">Reservation amount</string>
+    <string name="confirmation_informational_pass">Informational reservation reference</string>
+    <string name="confirmation_no_qr_available">A scannable entry pass is not available from the backend yet.</string>
     <string name="confirmation_open_navigation">Open navigation</string>
     <string name="confirmation_my_reservations">My reservations</string>
 </resources>

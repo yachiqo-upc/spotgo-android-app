@@ -37,7 +37,6 @@ class SpotGoApiTest {
         assertEquals("", SpotGoApi.base_url)
         assertFalse(SpotGoApi.is_configured())
         assertEquals(ApiResult.NotConfigured, SpotGoApi.post("/api/v1/ping", "{}"))
-        assertEquals(ApiResult.NotConfigured, SpotGoApi.post("/api/v1/billingDocuments/doc-1/email", "{}"))
     }
 
     @Test

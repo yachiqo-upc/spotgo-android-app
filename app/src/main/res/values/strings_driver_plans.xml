@@ -1,48 +1,27 @@
 <resources>
-    <!-- Mockup 13 — Plans & subscription (US20) -->
     <string name="plans_title">Plans &amp; subscription</string>
-    <string name="plans_heading">Choose the plan that fits you</string>
-    <string name="plans_subtitle">Upgrade anytime. Prices are shown in soles.</string>
-
-    <!-- Plan cards -->
-    <string name="plans_free_name">Free</string>
-    <string name="plans_free_price">S/ 0</string>
-    <string name="plans_monthly_name">Plus Monthly</string>
-    <string name="plans_monthly_price">S/ 14.90 / month</string>
-    <string name="plans_annual_name">Plus Annual</string>
-    <string name="plans_annual_price">S/ 149.00 / year</string>
-
-    <string name="plans_free_discount">0% parking discount · Free plan</string>
-    <string name="plans_monthly_discount">10% parking discount · Monthly</string>
-    <string name="plans_annual_discount">15% parking discount · Annual</string>
-
-    <!-- Badges -->
+    <string name="plans_heading">Available plans</string>
+    <string name="plans_subtitle">Prices and discounts come from the SpotGo plan catalog.</string>
+    <string name="plans_monthly_name">Monthly</string>
+    <string name="plans_annual_name">Annual</string>
     <string name="plans_badge_current">Current</string>
-    <string name="plans_badge_plus">Plus</string>
-    <string name="plans_badge_save">Save</string>
-
-    <!-- Buttons -->
     <string name="plans_current_button">Current plan</string>
-    <string name="plans_choose_free">Switch to Free</string>
-    <string name="plans_choose_monthly">Choose monthly</string>
-    <string name="plans_choose_annual">Choose annual</string>
+    <string name="plans_subscribe">Subscribe</string>
+    <string name="plans_cancel_first">Cancel current plan first</string>
     <string name="plans_processing">Processing payment…</string>
-
-    <!-- US20 scenario 1 / 2 / 3 notices -->
-    <string name="plans_notice_free">Free plan activated. No charge was generated.</string>
-    <string name="plans_notice_monthly">Plus Monthly activated. S/ 14.90 charged to your card.</string>
-    <string name="plans_notice_annual">Plus Annual activated. S/ 149.00 charged to your card.</string>
-    <string name="plans_notice_failed">The payment could not be completed. Try again.</string>
-
-    <!-- US20 scenario 5 — cancel the renewal (extra, not present in mockup 13) -->
-    <string name="plans_renewal_active">Renews automatically · benefits until %1$s</string>
-    <string name="plans_renewal_cancelled">Renewal cancelled · benefits until %1$s</string>
-    <string name="plans_cancel_renewal">Cancel renewal</string>
-    <string name="plans_renewal_resume">Resume renewal</string>
-    <string name="plans_notice_renewal_cancelled">Renewal cancelled. You keep your benefits until the end date.</string>
-    <string name="plans_notice_renewal_resumed">Automatic renewal enabled again.</string>
-
-    <!-- Plan status shown under the heading -->
-    <string name="plans_current_label">Current plan: %1$s</string>
-    <string name="plans_no_end">No expiry</string>
+    <string name="plans_current_label">Current subscription</string>
+    <string name="plans_no_active">No active paid subscription</string>
+    <string name="plans_end_date">Ends %1$s</string>
+    <string name="plans_billing_period">%1$d month(s)</string>
+    <string name="plans_discount">%1$d%% discount</string>
+    <string name="plans_price_unavailable">Price unavailable</string>
+    <string name="plans_catalog_empty">There are no Driver plans in the backend catalog.</string>
+    <string name="plans_loading">Loading plans and subscriptions from SpotGo…</string>
+    <string name="plans_backend_error">Plans or subscription status could not be loaded from SpotGo.</string>
+    <string name="plans_token_required">A registered tokenized payment method is required.</string>
+    <string name="plans_tokenization_notice">Add a simulated payment method in Payments to use this plan. No real card details or charges are used.</string>
+    <string name="plans_payment_approved">Payment approved by SpotGo.</string>
+    <string name="plans_payment_status_prefix">Payment status:</string>
+    <string name="plans_cancel_subscription">Cancel subscription</string>
+    <string name="plans_cancelled">Subscription cancelled by SpotGo.</string>
 </resources>

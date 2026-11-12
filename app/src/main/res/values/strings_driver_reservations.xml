@@ -17,4 +17,8 @@
     <!-- Empty state of the list (UI-only; the mockups do not define it). -->
     <string name="reservations_empty_title">No reservations yet</string>
     <string name="reservations_empty_hint">Reserve a spot from Explore and it will show up here.</string>
+    <string name="reservations_loading">Loading reservations from SpotGo…</string>
+    <string name="reservations_load_error">Reservations could not be loaded. Check your connection and try again.</string>
+    <string name="reservations_location_unavailable">Parking zone</string>
+    <string name="reservations_vehicle_unavailable">Vehicle</string>
 </resources>

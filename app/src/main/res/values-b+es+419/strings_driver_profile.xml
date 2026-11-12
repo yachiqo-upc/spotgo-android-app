@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="profile_subtitle">Cuenta de conductor</string>
+    <string name="profile_name_unavailable">Información del perfil no disponible</string>
+    <string name="profile_email_fallback">Correo electrónico no disponible</string>
+    <string name="profile_phone_fallback">Teléfono no disponible</string>
+    <string name="profile_data_unavailable">No se pudo cargar desde SpotGo</string>
+    <string name="profile_account">Cuenta</string>
+    <string name="profile_personal_information">Información personal</string>
+    <string name="profile_vehicles">Mis vehículos</string>
+    <string name="profile_vehicles_summary">%1$d vehículo(s) registrado(s)</string>
+    <string name="profile_vehicles_backend_loading">Cargando vehículos registrados…</string>
+    <string name="profile_language">Idioma y accesibilidad</string>
+    <string name="profile_language_english_us">English (United States)</string>
+    <string name="profile_language_spanish_latam">Español (Latinoamérica)</string>
+    <string name="profile_subscription">Planes y suscripción</string>
+    <string name="profile_subscription_none">No tienes una suscripción de pago activa</string>
+    <string name="profile_permitted_zones">Zonas permitidas</string>
+    <string name="profile_zones_summary">SpotGo administra el acceso</string>
+    <string name="profile_sign_out">Cerrar sesión</string>
+</resources>

@@ -1,17 +1,20 @@
 <resources>
     <string name="profile_subtitle">Driver account</string>
-    <string name="profile_name">Briguite Carhuaz</string>
-    <string name="profile_email">briguite@example.com</string>
+    <string name="profile_name_unavailable">Profile information unavailable</string>
+    <string name="profile_email_fallback">Email unavailable</string>
+    <string name="profile_phone_fallback">Phone unavailable</string>
+    <string name="profile_data_unavailable">Could not load from SpotGo</string>
     <string name="profile_account">Account</string>
     <string name="profile_personal_information">Personal information</string>
-    <string name="profile_phone">+51 999 123 456</string>
     <string name="profile_vehicles">My vehicles</string>
     <string name="profile_vehicles_summary">%1$d registered vehicles</string>
+    <string name="profile_vehicles_backend_loading">Loading registered vehicles…</string>
     <string name="profile_language">Language &amp; accessibility</string>
-    <string name="profile_language_value">English</string>
+    <string name="profile_language_english_us">English (United States)</string>
+    <string name="profile_language_spanish_latam">Español (Latinoamérica)</string>
     <string name="profile_subscription">Plans &amp; subscription</string>
-    <string name="profile_subscription_summary">Your plan, benefits and renewal</string>
+    <string name="profile_subscription_none">No active paid subscription</string>
     <string name="profile_permitted_zones">Permitted zones</string>
-    <string name="profile_zones_summary">Zones available for your Driver profile</string>
+    <string name="profile_zones_summary">Access is managed by SpotGo</string>
     <string name="profile_sign_out">Sign out</string>
 </resources>

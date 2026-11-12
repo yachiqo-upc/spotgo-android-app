@@ -6,8 +6,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,6 +33,16 @@ import com.yachiqo.spotgo.data.repository.money
 import com.yachiqo.spotgo.data.repository.moneyCompact
 import com.yachiqo.spotgo.data.repository.parseClock
 import com.yachiqo.spotgo.data.repository.parseTimestamp
+import com.yachiqo.spotgo.data.repository.RemoteReservationRepository
+import com.yachiqo.spotgo.data.repository.RemoteReservationResult
+import com.yachiqo.spotgo.data.repository.RemoteReservationChangeResult
+import com.yachiqo.spotgo.data.repository.RemoteBillingRepository
+import com.yachiqo.spotgo.data.repository.RemoteParkingRepository
+import com.yachiqo.spotgo.data.repository.RemotePaymentMethodsResult
+import com.yachiqo.spotgo.data.repository.RemotePaymentMethod
+import com.yachiqo.spotgo.data.repository.RemotePaymentResult
+import com.yachiqo.spotgo.data.repository.START_TIME_OPTIONS
+import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.driver.components.*
 import com.yachiqo.spotgo.ui.theme.SpotGoAccent
@@ -37,6 +50,12 @@ import com.yachiqo.spotgo.ui.theme.SpotGoError
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import java.time.Duration
 import java.time.LocalDateTime
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Picker sheets of the edit reservation screen. */
 private enum class EditSheet { DATE, TIME, DURATION }
@@ -54,6 +73,10 @@ fun EditReservationScreen(
     onBack: () -> Unit,
     onNotice: (String) -> Unit,
 ) {
+    if (SpotGoApi.is_configured()) {
+        RemoteEditReservationScreen(reservationId, onBack, onNotice)
+        return
+    }
     val reservation = ParkingRepository.reservation_by_id(reservationId)
     val zone = reservation?.let { ParkingRepository.zone_by_id(it.zone_id) }
     val spot = reservation?.let { ParkingRepository.spot_by_id(it.spot_id) }
@@ -78,7 +101,16 @@ fun EditReservationScreen(
     ).toMinutes() / 60.0
 
     var sheet by rememberSaveable { mutableStateOf<EditSheet?>(null) }
+    val todayLabel = stringResource(R.string.zone_today)
+    val tomorrowLabel = stringResource(R.string.zone_tomorrow)
     var dateOption by rememberSaveable { mutableStateOf(isoDateLabel(reservation.start_at)) }
+    LaunchedEffect(todayLabel, tomorrowLabel) {
+        dateOption = when (dateOption) {
+            "Today", "Hoy" -> todayLabel
+            "Tomorrow", "Mañana" -> tomorrowLabel
+            else -> dateOption
+        }
+    }
     // Keep the original start time only while it is still bookable (Peru time).
     var startTime by rememberSaveable {
         val validTimes = availableStartOptions(isoDateLabel(reservation.start_at))
@@ -219,7 +251,7 @@ fun EditReservationScreen(
     when (sheet) {
         EditSheet.DATE -> OptionsSheet(
             title = stringResource(R.string.zone_date),
-            options = listOf(stringResource(R.string.zone_today), stringResource(R.string.zone_tomorrow)),
+            options = listOf(todayLabel, tomorrowLabel),
             selected = dateOption,
             onSelect = { label ->
                 dateOption = label
@@ -252,6 +284,260 @@ fun EditReservationScreen(
             onDismissRequest = { sheet = null },
         )
 
+        null -> Unit
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RemoteEditReservationScreen(
+    reservationId: String,
+    onBack: () -> Unit,
+    onNotice: (String) -> Unit,
+) {
+    var reservation by remember(reservationId) { mutableStateOf<com.yachiqo.spotgo.data.model.Reservation?>(null) }
+    var loading by remember(reservationId) { mutableStateOf(true) }
+    var loadFailed by remember(reservationId) { mutableStateOf(false) }
+    LaunchedEffect(reservationId) {
+        loading = true
+        val result = withContext(Dispatchers.IO) {
+            RemoteParkingRepository.loadFacilities()
+            RemoteReservationRepository.loadReservation(reservationId)
+        }
+        if (result is RemoteReservationResult.Success) reservation = result.reservation else loadFailed = true
+        loading = false
+    }
+    Column(Modifier.fillMaxSize()) {
+        TopAppBar(title = { Text(stringResource(R.string.edit_title)) }, windowInsets = WindowInsets(0),
+            navigationIcon = {
+                IconButton(onClick = onBack) { FigmaIcon(R.drawable.ic_back, stringResource(R.string.edit_back)) }
+            })
+        when {
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            loadFailed || reservation == null -> Text(
+                stringResource(R.string.reservations_load_error), Modifier.padding(18.dp),
+                style = MaterialTheme.typography.bodyMedium, color = SpotGoError,
+            )
+            else -> RemoteEditReservationForm(reservation!!, onBack, onNotice)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RemoteEditReservationForm(
+    reservation: com.yachiqo.spotgo.data.model.Reservation,
+    onBack: () -> Unit,
+    onNotice: (String) -> Unit,
+) {
+    val originalStart = parseTimestamp(reservation.start_at)
+    val originalEnd = parseTimestamp(reservation.end_at)
+    val originalDate = originalStart.toLocalDate()
+    val originalDateLabel = isoDateLabel(reservation.start_at)
+    val todayLabel = stringResource(R.string.zone_today)
+    val tomorrowLabel = stringResource(R.string.zone_tomorrow)
+    val dateOptions = listOf(originalDateLabel, todayLabel, tomorrowLabel).distinct()
+    var dateChoice by rememberSaveable(reservation.reservation_id) { mutableStateOf(originalDateLabel) }
+    LaunchedEffect(todayLabel, tomorrowLabel) {
+        dateChoice = when (dateChoice) {
+            "Today", "Hoy" -> todayLabel
+            "Tomorrow", "Mañana" -> tomorrowLabel
+            else -> dateChoice
+        }
+    }
+    var startTime by rememberSaveable(reservation.reservation_id) { mutableStateOf(isoClock(reservation.start_at)) }
+    val originalHours = Duration.between(originalStart, originalEnd).toMinutes() / 60.0
+    val durationOptions = (listOf(originalHours) + listOf(1.0, 2.0, 3.0, 4.0)).distinct()
+    var durationHours by rememberSaveable(reservation.reservation_id) { mutableStateOf(originalHours) }
+    var sheet by rememberSaveable { mutableStateOf<EditSheet?>(null) }
+    var paymentMethods by remember(reservation.reservation_id) { mutableStateOf(emptyList<RemotePaymentMethod>()) }
+    var selectedTokenId by rememberSaveable(reservation.reservation_id) { mutableStateOf("") }
+    var pendingChangeId by rememberSaveable(reservation.reservation_id) { mutableStateOf("") }
+    var pendingPaymentId by rememberSaveable(reservation.reservation_id) { mutableStateOf("") }
+    var paymentStatus by rememberSaveable(reservation.reservation_id) { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val rescheduleSuccess = stringResource(R.string.edit_reschedule_success)
+    val refundScheduled = stringResource(R.string.edit_reschedule_refund_scheduled)
+    val scheduleUpdated = stringResource(R.string.edit_schedule_updated)
+    val rescheduleFailed = stringResource(R.string.edit_reschedule_failed)
+
+    LaunchedEffect(reservation.reservation_id) {
+        val (methodsResult, changes, pendingStatus) = withContext(Dispatchers.IO) {
+            val methods = RemoteBillingRepository.loadPaymentMethods()
+            val changes = RemoteReservationRepository.loadReservationChanges(reservation.reservation_id)
+            val pending = changes.orEmpty().lastOrNull { it.status == "PENDING_PAYMENT" }
+            val status = pending?.paymentId?.let { RemoteBillingRepository.payment(it) as? RemotePaymentResult.Success }?.status
+            Triple(methods, changes, status)
+        }
+        paymentMethods = (methodsResult as? RemotePaymentMethodsResult.Success)?.methods.orEmpty()
+        selectedTokenId = paymentMethods.firstOrNull { it.isDefault }?.tokenId
+            ?: paymentMethods.firstOrNull()?.tokenId.orEmpty()
+        val pending = changes.orEmpty().lastOrNull { it.status == "PENDING_PAYMENT" }
+        if (pending != null) {
+            pendingChangeId = pending.changeId
+            pendingPaymentId = pending.paymentId.orEmpty()
+            paymentStatus = pendingStatus.orEmpty()
+        }
+    }
+
+    val targetDate = when (dateChoice) {
+        todayLabel -> PeruClock.today()
+        tomorrowLabel -> PeruClock.today().plusDays(1)
+        else -> originalDate
+    }
+    val validTimes = if (targetDate == PeruClock.today())
+        START_TIME_OPTIONS.filter { parseClock(it) > PeruClock.minutesOfDay() }
+    else START_TIME_OPTIONS
+    LaunchedEffect(targetDate, validTimes) {
+        if (startTime !in validTimes && validTimes.isNotEmpty()) startTime = validTimes.first()
+    }
+    val newStart = LocalDateTime.of(targetDate, java.time.LocalTime.ofSecondOfDay(parseClock(startTime) * 60L))
+    val newEnd = newStart.plusMinutes((durationHours * 60).toLong())
+    val editable = reservation.status == com.yachiqo.spotgo.data.model.ReservationStatus.RESERVED &&
+        runCatching { Instant.parse(reservation.start_at).minusSeconds(300).isAfter(Instant.now()) }.getOrDefault(false)
+    val remoteChangePending = pendingChangeId.isNotBlank()
+
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        .padding(horizontal = 18.dp).padding(top = 10.dp, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        DriverPanel(outlined = true) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.edit_reservation_number, reservation.reservation_id), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.edit_current_schedule, isoDateLabel(reservation.start_at), isoClock(reservation.start_at), isoClock(reservation.end_at)),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.edit_current_amount, money(reservation.amount)), style = MaterialTheme.typography.bodyMedium,
+                    color = SpotGoAccent)
+            }
+        }
+        if (!editable) {
+            Text(stringResource(R.string.edit_reschedule_deadline),
+                style = MaterialTheme.typography.bodySmall, color = SpotGoError)
+        }
+        PickerField(stringResource(R.string.zone_date), dateChoice, onClick = { sheet = EditSheet.DATE })
+        PickerField(stringResource(R.string.zone_start_time), startTime, onClick = { sheet = EditSheet.TIME })
+        PickerField(stringResource(R.string.zone_duration), "${formatHours(durationHours)} h",
+            onClick = { sheet = EditSheet.DURATION })
+        DriverPanel(outlined = true) {
+            Text(stringResource(R.string.edit_new_schedule, newStart.toLocalDate(), isoClock(newStart.toString()), isoClock(newEnd.toString())),
+                Modifier.padding(14.dp), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (remoteChangePending && pendingPaymentId.isBlank()) {
+            Text(stringResource(R.string.edit_payment_method_required),
+                style = MaterialTheme.typography.bodySmall, color = SpotGoError)
+        }
+        if (paymentStatus.isNotBlank() && paymentStatus != "APPROVED") {
+            Text(stringResource(R.string.edit_payment_status, stringResource(com.yachiqo.spotgo.presentation.paymentStatusResource(paymentStatus))), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error)
+        }
+        DriverPrimaryButton(
+            label = when {
+                busy -> stringResource(R.string.edit_processing)
+                pendingPaymentId.isNotBlank() && paymentStatus == "REJECTED" -> stringResource(R.string.edit_action_retry_payment)
+                pendingPaymentId.isNotBlank() -> stringResource(R.string.edit_action_check_payment)
+                remoteChangePending -> stringResource(R.string.edit_action_pay_difference)
+                else -> stringResource(R.string.edit_update)
+            },
+            enabled = editable && !busy && (!remoteChangePending || selectedTokenId.isNotBlank() || pendingPaymentId.isNotBlank()),
+            onClick = {
+                if (pendingPaymentId.isNotBlank()) {
+                    scope.launch {
+                        busy = true
+                        val payment = withContext(Dispatchers.IO) {
+                            if (paymentStatus == "REJECTED") RemoteBillingRepository.retry(pendingPaymentId, selectedTokenId)
+                            else RemoteBillingRepository.reconcile(pendingPaymentId)
+                        }
+                        busy = false
+                        if (payment is RemotePaymentResult.Success) {
+                            paymentStatus = payment.status
+                            if (payment.status == "APPROVED") {
+                                onNotice(rescheduleSuccess)
+                                onBack()
+                            }
+                        }
+                    }
+                } else if (pendingChangeId.isNotBlank()) {
+                    scope.launch {
+                        busy = true
+                        val payment = withContext(Dispatchers.IO) {
+                            RemoteBillingRepository.payReservationChange(pendingChangeId, selectedTokenId)
+                        }
+                        busy = false
+                        if (payment is RemotePaymentResult.Success) {
+                            pendingPaymentId = payment.paymentId
+                            paymentStatus = payment.status
+                            if (payment.status == "APPROVED") {
+                                onNotice(rescheduleSuccess)
+                                onBack()
+                            }
+                        }
+                    }
+                } else {
+                    scope.launch {
+                        busy = true
+                        val result = withContext(Dispatchers.IO) {
+                            RemoteReservationRepository.rescheduleReservation(
+                                reservation.reservation_id,
+                                newStart.atZone(ZoneId.of("America/Lima")).toInstant().toString(),
+                                newEnd.atZone(ZoneId.of("America/Lima")).toInstant().toString(),
+                            )
+                        }
+                        busy = false
+                        when (result) {
+                            is RemoteReservationChangeResult.Success -> {
+                                val change = result.change
+                                if (change.paymentAmount > 0.0) {
+                                    pendingChangeId = change.changeId
+                                    if (selectedTokenId.isNotBlank()) {
+                                        scope.launch {
+                                            busy = true
+                                            val payment = withContext(Dispatchers.IO) {
+                                                RemoteBillingRepository.payReservationChange(change.changeId, selectedTokenId)
+                                            }
+                                            busy = false
+                                            if (payment is RemotePaymentResult.Success) {
+                                                pendingPaymentId = payment.paymentId
+                                                paymentStatus = payment.status
+                                                if (payment.status == "APPROVED") {
+                                                    onNotice(rescheduleSuccess)
+                                                    onBack()
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    onNotice(if (change.status == "REFUND_SCHEDULED") refundScheduled else scheduleUpdated)
+                                    onBack()
+                                }
+                            }
+                            RemoteReservationChangeResult.Failure -> onNotice(rescheduleFailed)
+                        }
+                    }
+                }
+            },
+        )
+        if (busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+    }
+
+    when (sheet) {
+        EditSheet.DATE -> OptionsSheet(
+            title = stringResource(R.string.zone_date), options = dateOptions, selected = dateChoice,
+            onSelect = { dateChoice = it; sheet = null }, onDismissRequest = { sheet = null },
+        )
+        EditSheet.TIME -> OptionsSheet(
+            title = stringResource(R.string.zone_start_time), options = validTimes, selected = startTime,
+            onSelect = { startTime = it; sheet = null }, onDismissRequest = { sheet = null },
+        )
+        EditSheet.DURATION -> OptionsSheet(
+            title = stringResource(R.string.zone_duration),
+            options = durationOptions.map { "${formatHours(it)} h" }, selected = "${formatHours(durationHours)} h",
+            onSelect = { chosen ->
+                durationHours = durationOptions.firstOrNull { "${formatHours(it)} h" == chosen } ?: durationHours
+                sheet = null
+            }, onDismissRequest = { sheet = null },
+        )
         null -> Unit
     }
 }

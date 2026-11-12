@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,17 @@ import com.yachiqo.spotgo.data.model.ParkingSpot
 import com.yachiqo.spotgo.data.model.ParkingZone
 import com.yachiqo.spotgo.data.repository.FavoriteRepository
 import com.yachiqo.spotgo.data.repository.ParkingRepository
+import com.yachiqo.spotgo.data.repository.RemoteParkingRepository
+import com.yachiqo.spotgo.data.repository.RemoteVehicleRepository
+import com.yachiqo.spotgo.data.repository.VehicleListResult
+import com.yachiqo.spotgo.data.repository.RemoteBillingRepository
+import com.yachiqo.spotgo.data.repository.RemotePaymentMethodsResult
+import com.yachiqo.spotgo.data.repository.RemotePaymentMethod
+import com.yachiqo.spotgo.data.repository.RemotePaymentResult
+import com.yachiqo.spotgo.data.repository.RemoteReservationRepository
+import com.yachiqo.spotgo.data.repository.RemoteReservationResult
+import com.yachiqo.spotgo.data.repository.RemoteSubscription
+import com.yachiqo.spotgo.data.repository.RemoteOutstandingBalance
 import com.yachiqo.spotgo.data.repository.PaymentRepository
 import com.yachiqo.spotgo.data.repository.PeruClock
 import com.yachiqo.spotgo.data.repository.ReservationError
@@ -38,6 +50,7 @@ import com.yachiqo.spotgo.data.repository.VehicleRepository
 import com.yachiqo.spotgo.data.repository.availableStartOptions
 import com.yachiqo.spotgo.data.repository.formatClock
 import com.yachiqo.spotgo.data.repository.money
+import com.yachiqo.spotgo.data.remote.SpotGoApi
 import com.yachiqo.spotgo.data.repository.parseClock
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.common.StateBottomSheet
@@ -46,12 +59,22 @@ import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import com.yachiqo.spotgo.ui.theme.SpotGoWarning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.time.ZoneId
 
 /** Sheets of the zone-details reserve flow (mockup 04 + wireflow driver-02). */
 private enum class ZoneSheet {
     VEHICLE, DATE, TIME, DURATION, SPOTS, REVIEW,
-    NO_VEHICLE, ZONE_FULL, VEHICLE_BUSY, SPOT_TAKEN, OUTSTANDING_BALANCE, PAST_TIME,
+    NO_VEHICLE, ZONE_FULL, VEHICLE_BUSY, SPOT_TAKEN, OUTSTANDING_BALANCE, PAST_TIME, PAYMENT_METHOD, PAYMENT_ERROR,
 }
+
+private data class LoadedZoneDriverData(
+    val vehicles: VehicleListResult,
+    val paymentMethods: RemotePaymentMethodsResult,
+    val subscriptions: List<RemoteSubscription>?,
+    val balances: List<RemoteOutstandingBalance>?,
+)
 
 /**
  * Mockup 04 — Zone details and reserve (US04 / US18): live availability of
@@ -64,22 +87,103 @@ private enum class ZoneSheet {
 fun ZoneDetailsScreen(
     zoneId: String,
     onBack: () -> Unit,
-    onPaid: () -> Unit,
+    onPaid: (String?) -> Unit,
     onMyVehicles: () -> Unit,
     onOpenBalance: () -> Unit,
     onUnavailableAction: () -> Unit,
 ) {
-    val zone = ParkingRepository.zone_by_id(zoneId) ?: ParkingRepository.zones().first()
-    val availableCount = ParkingRepository.available_count(zone.zone_id)
-    val vehicles = remember { VehicleRepository.vehicles_for_current_profile() }
-    var vehicleId by rememberSaveable { mutableStateOf(VehicleRepository.default_vehicle()?.vehicle_id ?: "") }
+    val context = LocalContext.current
+    val backendMode = SpotGoApi.is_configured()
+    var catalogLoading by remember(zoneId, backendMode) {
+        mutableStateOf(backendMode && RemoteParkingRepository.facilityForZone(zoneId) == null)
+    }
+    var catalogFailed by remember(zoneId) { mutableStateOf(false) }
+    LaunchedEffect(backendMode, zoneId) {
+        if (backendMode && RemoteParkingRepository.facilityForZone(zoneId) == null) {
+            catalogLoading = true
+            catalogFailed = RemoteParkingRepository.loadFacilities() !is com.yachiqo.spotgo.data.repository.ParkingCatalogResult.Success
+            catalogLoading = false
+        }
+    }
+    val remoteFacility = RemoteParkingRepository.facilityForZone(zoneId)
+    val remoteZone = remoteFacility?.zones?.firstOrNull { it.zone_id == zoneId }
+    if (backendMode && (catalogLoading || remoteZone == null)) {
+        Column(Modifier.fillMaxSize()) {
+            TopAppBar(title = { Text(stringResource(R.string.zone_title)) }, windowInsets = WindowInsets(0),
+                navigationIcon = {
+                    IconButton(onClick = onBack) { FigmaIcon(R.drawable.ic_back, stringResource(R.string.zone_back)) }
+                })
+            DriverPanel(outlined = true) {
+                Text(
+                    stringResource(if (catalogLoading) R.string.zone_catalog_loading
+                        else if (catalogFailed) R.string.zone_backend_catalog_error else R.string.zone_not_found),
+                    Modifier.padding(18.dp), style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+        return
+    }
+    val zone = remoteZone ?: ParkingRepository.zone_by_id(zoneId) ?: ParkingRepository.zones().first()
+    val availableCount = if (backendMode) {
+        remoteFacility?.availabilityByZone?.get(zone.zone_id) ?: 0
+    } else ParkingRepository.available_count(zone.zone_id)
+    var remoteVehicles by remember(zoneId) { mutableStateOf(emptyList<com.yachiqo.spotgo.data.model.Vehicle>()) }
+    var remotePaymentMethods by remember(zoneId) { mutableStateOf(emptyList<RemotePaymentMethod>()) }
+    var remotePlanDiscount by remember(zoneId) { mutableStateOf(0) }
+    var remoteHasOpenBalance by remember(zoneId) { mutableStateOf(false) }
+    var remoteDriverDataFailed by remember(zoneId) { mutableStateOf(false) }
+    var remoteSpots by remember(zoneId) { mutableStateOf(emptyList<ParkingSpot>()) }
+    var loadingSpots by remember { mutableStateOf(false) }
+    var loadingDriverData by remember(backendMode, zoneId) { mutableStateOf(backendMode) }
+    var selectedTokenId by rememberSaveable { mutableStateOf("") }
+    var paymentError by remember { mutableStateOf("") }
+    LaunchedEffect(backendMode, zoneId) {
+        if (backendMode) {
+            val loaded = withContext(Dispatchers.IO) {
+                LoadedZoneDriverData(
+                    vehicles = RemoteVehicleRepository.loadVehicles(),
+                    paymentMethods = RemoteBillingRepository.loadPaymentMethods(),
+                    subscriptions = RemoteBillingRepository.loadSubscriptions(),
+                    balances = RemoteBillingRepository.loadBalances(),
+                )
+            }
+            val vehicleResult = loaded.vehicles
+            val tokenResult = loaded.paymentMethods
+            val subscriptions = loaded.subscriptions
+            val balances = loaded.balances
+            remoteDriverDataFailed = vehicleResult !is VehicleListResult.Success ||
+                tokenResult !is RemotePaymentMethodsResult.Success || subscriptions == null || balances == null
+            remoteVehicles = (vehicleResult as? VehicleListResult.Success)?.vehicles.orEmpty()
+            remotePaymentMethods = (tokenResult as? RemotePaymentMethodsResult.Success)?.methods.orEmpty()
+            remoteHasOpenBalance = balances.orEmpty().any { it.status == "OPEN" }
+            val activePlan = subscriptions.orEmpty().firstOrNull { it.status == "ACTIVE" }
+            remotePlanDiscount = activePlan?.plan?.get("discount_percent")?.toString()?.toIntOrNull() ?: 0
+            selectedTokenId = remotePaymentMethods.firstOrNull { it.isDefault }?.tokenId
+                ?: remotePaymentMethods.firstOrNull()?.tokenId.orEmpty()
+            loadingDriverData = false
+        }
+    }
+    val vehicles = if (backendMode) remoteVehicles else remember { VehicleRepository.vehicles_for_current_profile() }
+    var vehicleId by rememberSaveable { mutableStateOf(if (backendMode) "" else VehicleRepository.default_vehicle()?.vehicle_id ?: "") }
+    LaunchedEffect(remoteVehicles) {
+        if (backendMode && vehicleId.isBlank()) vehicleId = remoteVehicles.firstOrNull()?.vehicle_id.orEmpty()
+    }
     // User request — no reservations in the past (Peru time): when today has
     // no slot left the form starts on "Tomorrow" with a valid start time.
+    val todayLabel = stringResource(R.string.zone_today)
+    val tomorrowLabel = stringResource(R.string.zone_tomorrow)
     var dateOption by rememberSaveable {
-        mutableStateOf(if (availableStartOptions("Today").isEmpty()) "Tomorrow" else "Today")
+        mutableStateOf(if (availableStartOptions(todayLabel).isEmpty()) tomorrowLabel else todayLabel)
+    }
+    LaunchedEffect(todayLabel, tomorrowLabel) {
+        dateOption = when (dateOption) {
+            "Today", "Hoy" -> todayLabel
+            "Tomorrow", "Mañana" -> tomorrowLabel
+            else -> dateOption
+        }
     }
     var startTime by rememberSaveable {
-        mutableStateOf(availableStartOptions("Today").firstOrNull() ?: START_TIME_OPTIONS.first())
+        mutableStateOf(availableStartOptions(todayLabel).firstOrNull() ?: START_TIME_OPTIONS.first())
     }
     var durationHours by rememberSaveable { mutableStateOf(2) }
     var sheet by remember { mutableStateOf<ZoneSheet?>(null) }
@@ -91,6 +195,7 @@ fun ZoneDetailsScreen(
     val vehicleOptions = vehicles.map { it to stringResource(R.string.vehicles_row_title, it.make, it.model, it.plate) }
     val vehicleLabel = vehicleOptions.firstOrNull { it.first.vehicle_id == vehicleId }?.second
         ?: stringResource(R.string.reserve_no_vehicle_field)
+    val openUntil = zone.open_until.ifBlank { stringResource(R.string.zone_hours_unavailable) }
     val durationOptions = listOf(
         stringResource(R.string.duration_1), stringResource(R.string.duration_2),
         stringResource(R.string.duration_3), stringResource(R.string.duration_4),
@@ -103,8 +208,10 @@ fun ZoneDetailsScreen(
     }
     val grossTotal = zone.hourly_price * durationHours
     // US20 — the plan discount (Free 0% · Plus 10/15%) applies to the quote.
-    val total = ParkingRepository.quoted_amount(grossTotal)
-    val planDiscount = PaymentRepository.subscription_discount_percent()
+    val planDiscount = if (backendMode) remotePlanDiscount else PaymentRepository.subscription_discount_percent()
+    val total = if (backendMode) grossTotal * (100 - planDiscount.coerceIn(0, 100)) / 100.0
+        else ParkingRepository.quoted_amount(grossTotal)
+    val totalLabel = if (backendMode) "≈ ${money(total)}" else money(total)
     val startMinutes = parseClock(startTime)
 
     Column(Modifier.fillMaxSize()) {
@@ -114,14 +221,14 @@ fun ZoneDetailsScreen(
             })
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)
             .padding(top = 14.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-            ZoneMap(zone, onUnavailableAction)
+            ZoneMap(zone, onUnavailableAction, backendMode)
             Row(Modifier.fillMaxWidth().heightIn(min = 42.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(zone.name, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
                 if (availableCount > 0) StatusBadge(stringResource(R.string.driver_available))
                 else StatusBadge(stringResource(R.string.explore_no_spots), positive = false)
             }
-            Text(stringResource(R.string.zone_address_format, zone.location),
+            Text(if (backendMode) zone.location else stringResource(R.string.zone_address_format, zone.location),
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth().heightIn(min = 78.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,7 +237,7 @@ fun ZoneDetailsScreen(
                     if (availableCount > 0) DriverAvailable else SpotGoWarning, Modifier.weight(1f))
                 ZoneStat(money(zone.hourly_price), stringResource(R.string.driver_per_hour),
                     MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                ZoneStat(zone.open_until, stringResource(R.string.zone_open_until),
+                ZoneStat(openUntil, stringResource(R.string.zone_open_until),
                     MaterialTheme.colorScheme.onSurface, Modifier.weight(1f))
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).height(40.dp),
@@ -169,7 +276,7 @@ fun ZoneDetailsScreen(
             Row(Modifier.fillMaxWidth().heightIn(min = 38.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.zone_total), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(money(total), style = MaterialTheme.typography.titleLarge)
+                Text(totalLabel, style = MaterialTheme.typography.titleLarge)
             }
 
             if (availableCount == 0) {
@@ -182,22 +289,47 @@ fun ZoneDetailsScreen(
 
             DriverPrimaryButton(
                 label = stringResource(R.string.zone_continue),
+                enabled = !loadingSpots && !loadingDriverData && !remoteDriverDataFailed,
                 onClick = {
                     when {
                         vehicles.isEmpty() -> sheet = ZoneSheet.NO_VEHICLE
-                        availableCount == 0 -> sheet = ZoneSheet.ZONE_FULL
-                        // US19 scenario 6 — an open balance blocks new reservations.
-                        PaymentRepository.has_open_balance() -> sheet = ZoneSheet.OUTSTANDING_BALANCE
+                        remoteDriverDataFailed -> sheet = ZoneSheet.PAYMENT_ERROR
+                        backendMode && remoteHasOpenBalance -> sheet = ZoneSheet.OUTSTANDING_BALANCE
+                        !backendMode && availableCount == 0 -> sheet = ZoneSheet.ZONE_FULL
+                        backendMode && remotePaymentMethods.isEmpty() -> sheet = ZoneSheet.PAYMENT_METHOD
+                        !backendMode && PaymentRepository.has_open_balance() -> sheet = ZoneSheet.OUTSTANDING_BALANCE
                         // User request — the slot must still be in the future (Peru time).
                         PeruClock.isPast(ParkingRepository.resolve_start(dateOption, startTime)) ->
                             sheet = ZoneSheet.PAST_TIME
                         else -> {
                             selectedSpot = null
-                            sheet = ZoneSheet.SPOTS
+                            if (backendMode) {
+                                loadingSpots = true
+                                scope.launch {
+                                    val start = ParkingRepository.resolve_start(dateOption, startTime)
+                                        .atZone(ZoneId.of("America/Lima")).toInstant()
+                                    val end = start.plusSeconds(durationHours * 3600L)
+                                    val result = withContext(Dispatchers.IO) {
+                                        RemoteParkingRepository.availableSpots(zone.zone_id, start.toString(), end.toString())
+                                    }
+                                    loadingSpots = false
+                                    if (result == null) {
+                                        paymentError = context.getString(R.string.zone_availability_check_error)
+                                        sheet = ZoneSheet.PAYMENT_ERROR
+                                    } else {
+                                        remoteSpots = result
+                                        sheet = if (result.isEmpty()) ZoneSheet.ZONE_FULL else ZoneSheet.SPOTS
+                                    }
+                                }
+                            } else sheet = ZoneSheet.SPOTS
                         }
                     }
                 },
             )
+            if (remoteDriverDataFailed) {
+                Text(stringResource(R.string.zone_backend_data_error), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 
@@ -214,7 +346,7 @@ fun ZoneDetailsScreen(
 
         ZoneSheet.DATE -> OptionsSheet(
             title = stringResource(R.string.zone_date),
-            options = listOf(stringResource(R.string.zone_today), stringResource(R.string.zone_tomorrow)),
+            options = listOf(todayLabel, tomorrowLabel),
             selected = dateOption,
             onSelect = { label ->
                 dateOption = label
@@ -252,7 +384,7 @@ fun ZoneDetailsScreen(
 
         ZoneSheet.SPOTS -> SpotSelectorSheet(
             zoneName = zone.name,
-            spots = ParkingRepository.available_spots(zone.zone_id),
+            spots = if (backendMode) remoteSpots else ParkingRepository.available_spots(zone.zone_id),
             selected = selectedSpot,
             onSelect = { selectedSpot = it },
             onContinue = { sheet = ZoneSheet.REVIEW },
@@ -266,14 +398,41 @@ fun ZoneDetailsScreen(
             startLabel = formatClock(startMinutes),
             endLabel = formatClock(startMinutes + durationHours * 60),
             zoneName = zone.name,
-            amountLabel = money(total),
+            amountLabel = totalLabel,
+            paymentMethodLabel = if (backendMode)
+                remotePaymentMethods.firstOrNull { it.tokenId == selectedTokenId }?.label ?: stringResource(R.string.payments_no_method)
+            else null,
             paying = paying,
             onPay = {
                 val spot = selectedSpot
                 if (spot != null) {
                     paying = true
                     scope.launch {
-                        when (val result = ParkingRepository.create_reservation(
+                        if (backendMode) {
+                            val start = ParkingRepository.resolve_start(dateOption, startTime)
+                                .atZone(ZoneId.of("America/Lima")).toInstant()
+                            val end = start.plusSeconds(durationHours * 3600L)
+                            val created = withContext(Dispatchers.IO) {
+                                RemoteReservationRepository.createReservation(
+                                    spot.spot_id, vehicle?.vehicle_id.orEmpty(), start.toString(), end.toString(),
+                                )
+                            }
+                            when (created) {
+                                is RemoteReservationResult.Success -> {
+                                    val result = withContext(Dispatchers.IO) {
+                                        RemoteBillingRepository.payReservation(created.reservation.reservation_id, selectedTokenId)
+                                    }
+                                    paying = false
+                                    // The details screen can complete, reconcile, or retry the remote payment.
+                                    onPaid(created.reservation.reservation_id)
+                                }
+                                RemoteReservationResult.Failure -> {
+                                    paying = false
+                                    paymentError = context.getString(R.string.zone_create_reservation_error)
+                                    sheet = ZoneSheet.PAYMENT_ERROR
+                                }
+                            }
+                        } else when (val result = ParkingRepository.create_reservation(
                             zone = zone, spot = spot, vehicle = vehicle,
                             date_label = dateOption, start_label = startTime, duration_hours = durationHours,
                         )) {
@@ -292,13 +451,35 @@ fun ZoneDetailsScreen(
                                 delay(1500) // simulated digital payment approval
                                 ParkingRepository.approve_payment(result.reservation.reservation_id)
                                 paying = false
-                                onPaid()
+                                onPaid(null)
                             }
                         }
                     }
                 }
             },
-            onChangePaymentMethod = onUnavailableAction,
+            onChangePaymentMethod = {
+                if (backendMode) sheet = ZoneSheet.PAYMENT_METHOD else onUnavailableAction()
+            },
+            onDismissRequest = { sheet = null },
+        )
+
+        ZoneSheet.PAYMENT_METHOD -> StateBottomSheet(
+            title = stringResource(R.string.zone_payment_method_unavailable_title),
+            message = stringResource(R.string.zone_payment_method_unavailable_message),
+            primaryText = stringResource(R.string.state_action_close),
+            onPrimary = { sheet = null },
+            secondaryText = stringResource(R.string.state_action_close),
+            onSecondary = { sheet = null },
+            onDismissRequest = { sheet = null },
+        )
+
+        ZoneSheet.PAYMENT_ERROR -> StateBottomSheet(
+            title = stringResource(R.string.zone_payment_failed_title),
+            message = paymentError,
+            primaryText = stringResource(R.string.state_action_close),
+            onPrimary = { sheet = null },
+            secondaryText = stringResource(R.string.state_action_close),
+            onSecondary = { sheet = null },
             onDismissRequest = { sheet = null },
         )
 
@@ -390,14 +571,23 @@ internal fun PickerField(
 }
 
 @Composable
-private fun ZoneMap(zone: ParkingZone, onUnavailableAction: () -> Unit) {
+private fun ZoneMap(zone: ParkingZone, onUnavailableAction: () -> Unit, backendMode: Boolean) {
     val context = LocalContext.current
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), color = DriverMapBackground,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
         BoxWithConstraints(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))) {
             val scale = maxWidth / 376.dp
             Box(Modifier.fillMaxWidth().height(206.dp * scale)) {
-                ParkingMapBase()
+                if (backendMode) {
+                    zone.coordinates.toMapPoint(zone.zone_id, zone.name)?.let { point ->
+                        MapLibreMapView(
+                            points = listOf(point),
+                            selectedPointId = point.id,
+                            onSelectPoint = {},
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                } else ParkingMapBase()
                 Surface(Modifier.offset(152.dp * scale, 68.dp * scale).size(155.dp, 36.dp),
                     color = DriverAvailable, shape = RoundedCornerShape(12.dp)) {
                     Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically,
@@ -409,14 +599,18 @@ private fun ZoneMap(zone: ParkingZone, onUnavailableAction: () -> Unit) {
                     }
                 }
                 // Heart saves the parking: it appears on the Saved chip.
-                FavoriteButton(FavoriteRepository.is_saved(zone.zone_id),
-                    onClick = { FavoriteRepository.toggle(zone.zone_id) },
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 14.dp))
+                if (!backendMode) {
+                    FavoriteButton(FavoriteRepository.is_saved(zone.zone_id),
+                        onClick = { FavoriteRepository.toggle(zone.zone_id) },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 14.dp))
+                }
                 Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 13.dp, vertical = 16.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(14.dp)) {
                     Row(Modifier.padding(start = 10.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.zone_map_distance, zone.distance_km.toString()),
-                            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (backendMode) zone.location else stringResource(R.string.zone_map_distance, zone.distance_km.toString()),
+                            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+                        )
                         TextButton(onClick = { context.openParkingNavigation(zone, onUnavailableAction) },
                             contentPadding = PaddingValues(horizontal = 10.dp)) {
                             Text(stringResource(R.string.zone_directions), style = MaterialTheme.typography.bodySmall)
@@ -426,6 +620,15 @@ private fun ZoneMap(zone: ParkingZone, onUnavailableAction: () -> Unit) {
             }
         }
     }
+}
+
+private fun String.toMapPoint(id: String, title: String): ParkingMapPoint? {
+    val parts = split(",")
+    if (parts.size != 2) return null
+    val longitude = parts[0].trim().toDoubleOrNull() ?: return null
+    val latitude = parts[1].trim().toDoubleOrNull() ?: return null
+    if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) return null
+    return ParkingMapPoint(id, title, "", latitude, longitude)
 }
 
 @Composable

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reservations_title">Mis reservas</string>
+    <string name="reservations_subtitle">Tus reservas de estacionamiento próximas y anteriores en Lima.</string>
+    <string name="reservations_upcoming">Próximas</string>
+    <string name="reservations_completed">Completadas</string>
+    <string name="reservations_cancelled">Canceladas</string>
+    <string name="reservations_confirmed">Confirmadas</string>
+    <string name="reservations_larco">Larco Parking</string>
+    <string name="reservations_miraflores">Miraflores, Lima</string>
+    <string name="reservations_tomorrow">Mañana</string>
+    <string name="reservations_evening_time">6:00 p. m. – 8:00 p. m.</string>
+    <string name="reservations_evening_price">S/ 18.00</string>
+    <string name="reservations_view_details">Ver detalles</string>
+    <string name="reservations_before_you_go">Antes de salir</string>
+    <string name="reservations_navigation_hint">Abre la navegación desde tu reserva para ver cómo llegar a la zona de estacionamiento.</string>
+    <string name="reservations_status_active">Activa</string>
+    <string name="reservations_empty_title">Todavía no tienes reservas</string>
+    <string name="reservations_empty_hint">Reserva un espacio desde Explorar y aparecerá aquí.</string>
+    <string name="reservations_loading">Cargando reservas de SpotGo…</string>
+    <string name="reservations_load_error">No se pudieron cargar las reservas. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="reservations_location_unavailable">Zona de estacionamiento</string>
+    <string name="reservations_vehicle_unavailable">Vehículo</string>
+</resources>
