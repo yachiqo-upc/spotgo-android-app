@@ -16,6 +16,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +55,7 @@ fun RegisterScreen(
     val email = rememberTextFieldState()
     // Keep the password in temporary UI state, outside saved instance state.
     val password = remember { TextFieldState() }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var acceptedTerms by rememberSaveable { mutableStateOf(false) }
     var authError by remember { mutableStateOf<AuthError?>(null) }
     // US13 — step 1 form, step 2 e-mail verification (the account is only
@@ -134,13 +136,21 @@ fun RegisterScreen(
                         label = { Text(stringResource(R.string.login_password)) },
                         placeholder = { Text(stringResource(R.string.register_password_placeholder)) },
                         trailingIcon = {
-                            IconButton(onClick = { password.edit { replace(0, length, "") } }) {
-                                FigmaIcon(R.drawable.ic_cancel, stringResource(R.string.login_clear_password))
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    painter = painterResource(
+                                        if (passwordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility,
+                                    ),
+                                    contentDescription = stringResource(
+                                        if (passwordVisible) R.string.login_hide_password else R.string.login_show_password,
+                                    ),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         },
                         modifier = Modifier.fillMaxWidth().figmaFieldBounds(),
                         shape = RoundedCornerShape(16.dp),
-                        textObfuscationMode = TextObfuscationMode.Hidden,
+                        textObfuscationMode = if (passwordVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         onKeyboardAction = { focusManager.clearFocus() },
                         colors = loginFieldColors(),

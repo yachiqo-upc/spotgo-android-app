@@ -188,7 +188,7 @@ fun OutstandingBalanceScreen(
                                 onClick = {
                                     if (charge != null && busyBalanceId == null && tokenId.isNotBlank()) scope.launch {
                                         busyBalanceId = balance.balanceId
-                                        val result = withContext(Dispatchers.IO) {
+                                        val initialResult = withContext(Dispatchers.IO) {
                                             when {
                                                 paymentId == null -> RemoteBillingRepository.payAdditionalCharge(charge.chargeId, tokenId)
                                                 paymentStatus == "REJECTED" -> RemoteBillingRepository.retry(paymentId, tokenId)
@@ -196,6 +196,7 @@ fun OutstandingBalanceScreen(
                                                 else -> RemoteBillingRepository.reconcile(paymentId)
                                             }
                                         }
+                                        val result = RemoteBillingRepository.awaitPaymentResolution(initialResult)
                                         val (updatedBalances, updatedCharges, statuses) = withContext(Dispatchers.IO) {
                                             val nextBalances = RemoteBillingRepository.loadBalances()
                                             val nextCharges = RemoteBillingRepository.loadCharges()

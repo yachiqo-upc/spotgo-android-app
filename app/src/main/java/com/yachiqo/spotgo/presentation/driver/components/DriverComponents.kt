@@ -30,7 +30,6 @@ internal val DriverMapBackground = Color(0xFF171B27)
 internal fun DriverPage(
     title: String,
     subtitle: String? = null,
-    onProfile: (() -> Unit)? = null,
     prominentTitle: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -41,12 +40,6 @@ internal fun DriverPage(
         ) {
             Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
                 SpotGoWordmark(Modifier.weight(1f))
-                if (onProfile != null) {
-                    IconButton(onClick = onProfile) {
-                        Icon(painterResource(R.drawable.ic_profile), stringResource(R.string.driver_open_profile),
-                            Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
             }
             Text(title, style = MaterialTheme.typography.headlineMedium.copy(
                 fontSize = if (prominentTitle) 27.sp else 24.sp, lineHeight = if (prominentTitle) 34.sp else 32.sp))

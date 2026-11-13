@@ -23,6 +23,11 @@
     <string name="payments_favorite">Favorito</string>
     <string name="payments_set_favorite">Marcar como favorito</string>
     <string name="payments_method_added">Método de pago simulado guardado.</string>
+    <string name="payments_remove_method">Eliminar método de pago</string>
+    <string name="payments_remove_method_title">¿Eliminar método de pago?</string>
+    <string name="payments_remove_method_message">¿Quieres eliminar %1$s de esta cuenta?</string>
+    <string name="payments_method_removed">Se eliminó el método de pago.</string>
+    <string name="payments_method_remove_failed">No se pudo eliminar el método de pago.</string>
     <string name="payments_favorite_updated">Se actualizó el método de pago favorito.</string>
     <string name="payments_method_save_failed">No se pudo guardar el método de pago. Revisa la conexión con el backend y los datos de la tarjeta.</string>
     <string name="payments_transactions">Transacciones recientes</string>

@@ -24,6 +24,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedSecureTextField
@@ -44,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -84,6 +87,8 @@ fun ForgotPasswordScreen(
     val token = remember { TextFieldState() }
     val newPassword = remember { TextFieldState() }
     val confirmPassword = remember { TextFieldState() }
+    var newPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
     var sentToken by remember { mutableStateOf("") }
     var pending by remember { mutableStateOf(false) }
     var sheet by remember { mutableStateOf<ForgotSheet?>(null) }
@@ -246,9 +251,22 @@ fun ForgotPasswordScreen(
                             labelPosition = TextFieldLabelPosition.Attached(alwaysMinimize = true),
                             label = { Text(stringResource(R.string.forgot_new_password)) },
                             placeholder = { Text(stringResource(R.string.register_password_placeholder)) },
+                            trailingIcon = {
+                                IconButton(onClick = { newPasswordVisible = !newPasswordVisible }) {
+                                    Icon(
+                                        painter = painterResource(
+                                            if (newPasswordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility,
+                                        ),
+                                        contentDescription = stringResource(
+                                            if (newPasswordVisible) R.string.login_hide_password else R.string.login_show_password,
+                                        ),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth().figmaFieldBounds(),
                             shape = RoundedCornerShape(16.dp),
-                            textObfuscationMode = TextObfuscationMode.Hidden,
+                            textObfuscationMode = if (newPasswordVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
                             colors = loginFieldColors(),
                         )
@@ -258,15 +276,21 @@ fun ForgotPasswordScreen(
                             label = { Text(stringResource(R.string.forgot_confirm_password)) },
                             placeholder = { Text(stringResource(R.string.register_password_placeholder)) },
                             trailingIcon = {
-                                androidx.compose.material3.IconButton(
-                                    onClick = { confirmPassword.edit { replace(0, length, "") } },
-                                ) {
-                                    FigmaIcon(R.drawable.ic_cancel, stringResource(R.string.login_clear_password))
+                                IconButton(onClick = { confirmPasswordVisible = !confirmPasswordVisible }) {
+                                    Icon(
+                                        painter = painterResource(
+                                            if (confirmPasswordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility,
+                                        ),
+                                        contentDescription = stringResource(
+                                            if (confirmPasswordVisible) R.string.login_hide_password else R.string.login_show_password,
+                                        ),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             },
                             modifier = Modifier.fillMaxWidth().figmaFieldBounds(),
                             shape = RoundedCornerShape(16.dp),
-                            textObfuscationMode = TextObfuscationMode.Hidden,
+                            textObfuscationMode = if (confirmPasswordVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                             onKeyboardAction = { focusManager.clearFocus() },
                             colors = loginFieldColors(),

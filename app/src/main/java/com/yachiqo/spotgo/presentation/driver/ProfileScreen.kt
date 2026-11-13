@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,6 +37,7 @@ fun ProfileScreen(
     onSignOut: () -> Unit,
     onMyVehicles: () -> Unit,
     onPlans: () -> Unit,
+    onPersonalInformation: () -> Unit,
     onUnavailableAction: () -> Unit,
 ) {
     val profile = AuthRepository.current_profile()
@@ -64,8 +66,6 @@ fun ProfileScreen(
     ).joinToString(" ").ifBlank { stringResource(R.string.profile_name_unavailable) }
     val displayEmail = profile?.email?.takeIf(String::isNotBlank)
         ?: stringResource(R.string.profile_email_fallback)
-    val displayPhone = profile?.phone?.takeIf(String::isNotBlank)
-        ?: stringResource(R.string.profile_phone_fallback)
     val vehicleSummary = when {
         vehicleLoadFailed -> stringResource(R.string.profile_data_unavailable)
         remoteVehicleCount != null -> stringResource(R.string.profile_vehicles_summary, remoteVehicleCount!!)
@@ -73,18 +73,15 @@ fun ProfileScreen(
     }
     val subscriptionSummary = when {
         subscriptionLoadFailed -> stringResource(R.string.profile_data_unavailable)
-        activeSubscription != null -> when (activeSubscription!!.planCode) {
-            "DRIVER_MONTHLY" -> stringResource(R.string.plans_monthly_name)
-            "DRIVER_ANNUAL" -> stringResource(R.string.plans_annual_name)
-            else -> activeSubscription!!.planCode
-        }
+        activeSubscription != null -> stringResource(planDisplayNameResource(activeSubscription!!.planCode))
         else -> stringResource(R.string.profile_subscription_none)
     }
 
-    DriverPage(stringResource(R.string.driver_profile), stringResource(R.string.profile_subtitle),
-        onProfile = onUnavailableAction) {
+    DriverPage(stringResource(R.string.driver_profile), stringResource(R.string.profile_subtitle)) {
         DriverPanel(outlined = true) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 104.dp).padding(16.dp),
+            Row(Modifier.fillMaxWidth().heightIn(min = 104.dp)
+                .clickable(role = Role.Button, onClick = onPersonalInformation)
+                .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Icon(painterResource(R.drawable.ic_profile), contentDescription = null, modifier = Modifier.size(40.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -93,11 +90,11 @@ fun ProfileScreen(
                     Text(displayEmail, style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                Text(stringResource(R.string.payments_chevron), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         DriverSectionTitle(stringResource(R.string.profile_account))
         DriverPanel {
-            ProfileRow(stringResource(R.string.profile_personal_information), displayPhone, onUnavailableAction)
             ProfileRow(stringResource(R.string.profile_vehicles), vehicleSummary, onMyVehicles)
             ProfileRow(
                 stringResource(R.string.profile_language),
@@ -173,5 +170,5 @@ private fun ProfileRow(title: String, subtitle: String, onClick: () -> Unit) {
 @Preview(widthDp = 412, heightDp = 915)
 @Composable
 private fun ProfilePreview() {
-    SpotGoTheme { ProfileScreen({}, {}, {}, {}) }
+    SpotGoTheme { ProfileScreen({}, {}, {}, {}, {}) }
 }

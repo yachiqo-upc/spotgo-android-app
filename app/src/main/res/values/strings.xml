@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">SpotGo</string>
+    <string name="session_restoring">Restoring your session…</string>
     <string name="backend_required_title">SpotGo backend required</string>
     <string name="backend_required_message">Set SPOTGO_API_BASE_URL in local.properties and start the SpotGo backend to continue.</string>
     <string name="fcm_channel_name">SpotGo updates</string>
@@ -16,7 +17,8 @@
     <string name="login_email_placeholder">you@example.com</string>
     <string name="login_password">Password</string>
     <string name="login_password_placeholder">Enter your password</string>
-    <string name="login_clear_password">Clear password</string>
+    <string name="login_show_password">Show password</string>
+    <string name="login_hide_password">Hide password</string>
     <string name="login_remember">Keep me signed in</string>
     <string name="login_forgot_password">Forgot password?</string>
     <string name="login_new_here">New here?</string>

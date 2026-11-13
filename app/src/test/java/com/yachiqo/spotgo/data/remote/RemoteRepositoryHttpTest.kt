@@ -4,8 +4,10 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import com.yachiqo.spotgo.data.repository.ParkingCatalogResult
 import com.yachiqo.spotgo.data.repository.ParkingFacilityListing
+import com.yachiqo.spotgo.data.repository.AuthRepository
 import com.yachiqo.spotgo.data.repository.RemoteBillingRepository
 import com.yachiqo.spotgo.data.repository.RemotePaymentMethodMutationResult
+import com.yachiqo.spotgo.data.repository.RemotePaymentResult
 import com.yachiqo.spotgo.data.repository.RemoteParkingRepository
 import com.yachiqo.spotgo.data.repository.RemoteReservationRepository
 import com.yachiqo.spotgo.data.repository.RemoteReservationResult
@@ -16,6 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -25,12 +28,14 @@ class RemoteRepositoryHttpTest {
     private var previousBaseUrl: String? = null
     private var previousAccessToken: String? = null
     private var previousRefreshToken: String? = null
+    private var previousRefreshExpiresAt: String? = null
 
     @Before
     fun setUp() {
         previousBaseUrl = System.getProperty("spotgo.test.api.base.url")
         previousAccessToken = SpotGoApi.current_access_token()
         previousRefreshToken = SpotGoApi.current_refresh_token()
+        previousRefreshExpiresAt = SpotGoApi.current_refresh_expires_at()
         server = RecordingHttpServer()
         System.setProperty("spotgo.test.api.base.url", server.baseUrl)
         SpotGoApi.set_tokens("test-access-token", "test-refresh-token")
@@ -42,7 +47,7 @@ class RemoteRepositoryHttpTest {
         if (previousBaseUrl == null) System.clearProperty("spotgo.test.api.base.url")
         else System.setProperty("spotgo.test.api.base.url", previousBaseUrl)
         if (previousAccessToken == null || previousRefreshToken == null) SpotGoApi.clear_tokens()
-        else SpotGoApi.set_tokens(previousAccessToken!!, previousRefreshToken!!)
+        else SpotGoApi.set_tokens(previousAccessToken!!, previousRefreshToken!!, previousRefreshExpiresAt)
     }
 
     @Test
@@ -86,6 +91,96 @@ class RemoteRepositoryHttpTest {
 
         assertTrue(RemoteBillingRepository.addSimulatedPaymentMethod("visa", "4111111111111111") is RemotePaymentMethodMutationResult.Failure)
         assertEquals(2, server.requests.size)
+    }
+
+    @Test
+    fun paymentMethodCanBeRemovedThroughTheAuthenticatedBackendEndpoint() {
+        server.handler = { request ->
+            assertEquals("DELETE", request.method)
+            assertEquals("/api/v1/payment-tokens/token-1", request.path)
+            assertEquals("Bearer test-access-token", request.authorization)
+            StubResponse(204, "")
+        }
+
+        assertTrue(RemoteBillingRepository.removePaymentMethod("token-1"))
+        assertEquals(1, server.requests.size)
+    }
+
+    @Test
+    fun eachSubscriptionCheckoutGetsANewIdempotencyKey() {
+        var createdPayments = 0
+        server.handler = { request ->
+            when {
+                request.method == "POST" && request.path == "/api/v1/digital-payments/subscriptions" -> {
+                    createdPayments += 1
+                    StubResponse(201, """{"paymentId":"payment-$createdPayments"}""")
+                }
+                request.method == "POST" && request.path.endsWith("/process") -> StubResponse(200, """{"status":"APPROVED"}""")
+                else -> StubResponse(404, "{}")
+            }
+        }
+
+        val first = RemoteBillingRepository.paySubscription("DRIVER_MONTHLY", "token-1")
+        val second = RemoteBillingRepository.paySubscription("DRIVER_MONTHLY", "token-1")
+
+        assertEquals(RemotePaymentResult.Success("APPROVED", "payment-1"), first)
+        assertEquals(RemotePaymentResult.Success("APPROVED", "payment-2"), second)
+        val createRequests = server.requests.filter { it.path == "/api/v1/digital-payments/subscriptions" }
+        assertTrue(createRequests.all { it.body.contains("\"planCode\":\"DRIVER_MONTHLY\"") })
+        val idempotencyKeys = createRequests.map { Regex("\"idempotencyKey\":\"([^\"]+)\"").find(it.body)!!.groupValues[1] }
+        assertNotEquals(idempotencyKeys[0], idempotencyKeys[1])
+    }
+
+    @Test
+    fun googleSignInExchangesTheIdTokenAndLoadsTheDriverProfile() {
+        server.handler = { request ->
+            when (request.path) {
+                "/api/v1/authentication/google" -> StubResponse(
+                    200,
+                    """{"role":"DRIVER","accountId":"account-google","email":"ada@example.com","sessionId":"session-google","accessToken":"google-access","refreshToken":"google-refresh","accessExpiresAt":"2098-12-31T23:45:00Z","refreshExpiresAt":"2099-01-01T00:00:00Z"}""",
+                )
+                "/api/v1/profiles/me" -> StubResponse(
+                    200,
+                    """{"id":"profile-google","accountId":"account-google","firstName":"Ada","lastName":"Lovelace","phone":"+51123456789","createdAt":"2026-11-12T10:00:00Z","updatedAt":"2026-11-12T10:00:00Z"}""",
+                )
+                else -> StubResponse(404, "{}")
+            }
+        }
+
+        val result = AuthRepository.sign_in_with_google(keep_signed_in = true, id_token = "google-id-token")
+
+        assertTrue(result is com.yachiqo.spotgo.data.repository.AuthResult.Success)
+        assertEquals("/api/v1/authentication/google", server.requests[0].path)
+        assertTrue(server.requests[0].body.contains("\"idToken\":\"google-id-token\""))
+        assertEquals(null, server.requests[0].authorization)
+        assertEquals("Bearer google-access", server.requests[1].authorization)
+    }
+
+    @Test
+    fun savedBackendSessionRestoresTheProfileAfterProcessRecreation() {
+        SpotGoApi.set_tokens(
+            "saved-access",
+            "saved-refresh",
+            "2099-01-01T00:00:00Z",
+        )
+        server.handler = { request ->
+            when (request.path) {
+                "/api/v1/profiles/me" -> StubResponse(
+                    200,
+                    """{"id":"profile-1","accountId":"account-1","firstName":"Ada","lastName":"Lovelace","phone":"+51123456789"}""",
+                )
+                "/api/v1/accounts/me" -> StubResponse(
+                    200,
+                    """{"id":"account-1","email":"ada@example.com","status":"ACTIVE"}""",
+                )
+                else -> StubResponse(404, "{}")
+            }
+        }
+
+        assertTrue(AuthRepository.restore_backend_session())
+        assertEquals("ada@example.com", AuthRepository.current_profile()?.email)
+        assertEquals(listOf("/api/v1/profiles/me", "/api/v1/accounts/me"), server.requests.map { it.path })
+        assertTrue(server.requests.all { it.authorization == "Bearer saved-access" })
     }
 
     @Test
@@ -187,7 +282,7 @@ class RemoteRepositoryHttpTest {
             when {
                 request.path == "/api/v1/authentication/refresh" -> StubResponse(
                     200,
-                    """{"accessToken":"rotated-access","refreshToken":"rotated-refresh"}""",
+                    """{"accessToken":"rotated-access","refreshToken":"rotated-refresh","refreshExpiresAt":"2099-01-02T00:00:00Z"}""",
                 )
                 request.path == "/api/v1/private" && request.authorization == "Bearer test-access-token" -> StubResponse(401, "{}")
                 request.path == "/api/v1/private" && request.authorization == "Bearer rotated-access" -> StubResponse(200, "ok")
@@ -200,6 +295,7 @@ class RemoteRepositoryHttpTest {
         assertEquals(ApiResult.Success(200, "ok"), result)
         assertEquals("rotated-access", SpotGoApi.current_access_token())
         assertEquals("rotated-refresh", SpotGoApi.current_refresh_token())
+        assertEquals("2099-01-02T00:00:00Z", SpotGoApi.current_refresh_expires_at())
         assertEquals(listOf("Bearer test-access-token", null, "Bearer rotated-access"), server.requests.map { it.authorization })
         assertTrue(server.requests[1].body.contains("\"refreshToken\":\"test-refresh-token\""))
     }

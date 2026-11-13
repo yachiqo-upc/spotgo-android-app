@@ -5,6 +5,7 @@
     <string name="plans_subtitle">Los precios y descuentos se obtienen del catálogo de planes de SpotGo.</string>
     <string name="plans_monthly_name">Mensual</string>
     <string name="plans_annual_name">Anual</string>
+    <string name="plans_other_name">Suscripción</string>
     <string name="plans_badge_current">Actual</string>
     <string name="plans_current_button">Plan actual</string>
     <string name="plans_subscribe">Suscribirme</string>

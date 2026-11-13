@@ -10,7 +10,6 @@ import androidx.test.espresso.Espresso.pressBack
 import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.platform.app.InstrumentationRegistry
 import com.yachiqo.spotgo.MainActivity
-import com.yachiqo.spotgo.data.repository.AuthRepository
 import java.io.File
 import org.junit.After
 import org.junit.Rule
@@ -20,12 +19,11 @@ class RegisterIntegrationTest {
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
 
-    // Every test starts from the seed accounts of SpotGoDatabase.
     private val database = DatabaseSnapshot()
 
     @After
     fun restoreDatabase() {
-        AuthRepository.sign_out()
+        compose.signOutIfSignedIn()
         database.restore()
     }
 
@@ -57,8 +55,9 @@ class RegisterIntegrationTest {
         field("Phone").performScrollTo().performTextInput("123456789")
         field("Email").performScrollTo().performTextInput("sample@example.com")
         field("Password").performScrollTo().performTextInput("temporary-password")
-        compose.onNodeWithContentDescription("Clear password").performClick()
-        field("Password").assert(emptyField()).performTextInput("temporary-password")
+        compose.onNodeWithContentDescription("Show password").performClick()
+        compose.onNodeWithContentDescription("Hide password").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Hide password").performClick()
         closeSoftKeyboard()
         compose.onNodeWithText("I agree to the Terms and Privacy Policy").performScrollTo().performClick()
         compose.activityRule.scenario.recreate()
@@ -88,8 +87,9 @@ class RegisterIntegrationTest {
         field("First name").performTextInput("Prueba")
         field("Last name").performScrollTo().performTextInput("Conductor")
         field("Phone").performScrollTo().performTextInput("987654321")
-        field("Email").performScrollTo().performTextInput("qa.driver@example.com")
-        field("Password").performScrollTo().performTextInput("SpotGo2026")
+        val testEmail = "qa-${java.util.UUID.randomUUID()}@example.com"
+        field("Email").performScrollTo().performTextInput(testEmail)
+        field("Password").performScrollTo().performTextInput("SpotGo2026!")
         closeSoftKeyboard()
         compose.onNodeWithText("I agree to the Terms and Privacy Policy").performScrollTo().performClick()
         compose.onNodeWithText("Create account").performScrollTo().performClick()
@@ -106,14 +106,14 @@ class RegisterIntegrationTest {
         field("First name").performScrollTo().assertTextContains("Prueba")
         field("Last name").performScrollTo().assertTextContains("Conductor")
         field("Phone").performScrollTo().assertTextContains("987654321")
-        field("Email").performScrollTo().assertTextContains("qa.driver@example.com")
+        field("Email").performScrollTo().assertTextContains(testEmail)
 
         compose.onNodeWithText("Sign in").performScrollTo().performClick()
         compose.waitForText("Welcome back")
 
         compose.signIn()
         compose.onNode(hasText("Profile") and isSelectable()).performClick()
-        compose.onNodeWithText("Briguite Carhuaz").assertIsDisplayed()
+        compose.onNodeWithText("Test Driver").assertIsDisplayed()
         compose.onNodeWithText("Sign out").performScrollTo().performClick()
         compose.waitForText("Welcome back")
     }

@@ -67,7 +67,6 @@ import java.util.Locale
 @Composable
 fun ExploreParkingScreen(
     onOpenZone: (String) -> Unit,
-    onProfile: () -> Unit,
     onUnavailableAction: () -> Unit,
 ) {
     var facilities by remember { mutableStateOf<List<ParkingFacilityListing>>(emptyList()) }
@@ -120,7 +119,6 @@ fun ExploreParkingScreen(
     DriverPage(
         stringResource(R.string.explore_title),
         stringResource(R.string.explore_subtitle),
-        onProfile,
         prominentTitle = true,
     ) {
         SearchBar(
@@ -369,5 +367,5 @@ private fun ZoneCard(zone: ParkingZone, available: Int, onOpenZone: (String) -> 
 @Preview(widthDp = 412, heightDp = 915)
 @Composable
 private fun ExploreParkingPreview() {
-    SpotGoTheme { ExploreParkingScreen({}, {}, {}) }
+    SpotGoTheme { ExploreParkingScreen({}, {}) }
 }

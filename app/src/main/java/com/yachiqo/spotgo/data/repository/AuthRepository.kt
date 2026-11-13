@@ -25,6 +25,22 @@ sealed interface AuthResult {
     data class Failure(val error: AuthError) : AuthResult
 }
 
+sealed interface AccountDetailsUpdateResult {
+    data class Success(val profile: Profile) : AccountDetailsUpdateResult
+    data object EmailAlreadyInUse : AccountDetailsUpdateResult
+    data object InvalidDetails : AccountDetailsUpdateResult
+    data object Failure : AccountDetailsUpdateResult
+}
+
+enum class PasswordChangeResult {
+    SUCCESS,
+    INVALID_CURRENT_PASSWORD,
+    PASSWORD_REQUIREMENTS,
+    PASSWORD_REUSED,
+    LOCAL_PASSWORD_UNAVAILABLE,
+    FAILURE,
+}
+
 /**
  * Access failures modelled after the Figma state sheets:
  * - INVALID_FORM: required fields missing or invalid (register).
@@ -273,7 +289,7 @@ object AuthRepository {
     /** US09 — sign in with SpotGo credentials. */
     fun sign_in(email: String, password: String, keep_signed_in: Boolean): AuthResult {
         val cleanEmail = email.trim()
-        if (SpotGoApi.is_configured()) return signInWithBackend(cleanEmail, password)
+        if (SpotGoApi.is_configured()) return signInWithBackend(cleanEmail, password, keep_signed_in)
         val account = accountsByEmail(cleanEmail).firstOrNull()
         val credential = account?.let { acc ->
             SpotGoDatabase.credentials.firstOrNull {
@@ -321,7 +337,7 @@ object AuthRepository {
             val body = JSONObject().put("idToken", token).toString()
             return when (val result = SpotGoApi.post("/api/v1/authentication/google", body)) {
                 is ApiResult.Success -> when {
-                    result.status in 200..299 -> authenticateBackendUser(JSONObject(result.body))
+                    result.status in 200..299 -> authenticateBackendUser(JSONObject(result.body), keep_signed_in)
                     result.status == 409 -> AuthResult.Failure(AuthError.DUPLICATE_EMAIL)
                     result.status == 401 -> AuthResult.Failure(AuthError.INVALID_CREDENTIALS)
                     else -> AuthResult.Failure(AuthError.API_ERROR)
@@ -502,7 +518,8 @@ object AuthRepository {
         if (SpotGoApi.is_configured()) {
             if (SpotGoApi.current_refresh_token().isNullOrBlank()) return true
             return runCatching {
-                backend_refresh_expires_at?.let { Instant.parse(it).isBefore(Instant.now()) } ?: false
+                (SpotGoApi.current_refresh_expires_at() ?: backend_refresh_expires_at)
+                    ?.let { Instant.parse(it).isBefore(Instant.now()) } ?: false
             }.getOrDefault(true)
         }
         val sessionId = active_session_id ?: return true
@@ -512,6 +529,52 @@ object AuthRepository {
         return runCatching {
             Instant.parse(session.expires_at).isBefore(Instant.now())
         }.getOrDefault(true)
+    }
+
+    /** Restores the signed-in Driver profile after Android recreates the process. */
+    fun restore_backend_session(): Boolean {
+        if (!SpotGoApi.is_configured() || SpotGoApi.current_refresh_token().isNullOrBlank()) return false
+        if (session_expired()) {
+            SpotGoApi.clear_tokens()
+            return false
+        }
+        val profileJson = when (val response = SpotGoApi.get("/api/v1/profiles/me")) {
+            is ApiResult.Success -> if (response.status in 200..299) {
+                runCatching { JSONObject(response.body) }.getOrNull()
+            } else null
+            ApiResult.NotConfigured, is ApiResult.Failure -> null
+        } ?: return false
+        val accountJson = when (val response = SpotGoApi.get("/api/v1/accounts/me")) {
+            is ApiResult.Success -> if (response.status in 200..299) {
+                runCatching { JSONObject(response.body) }.getOrNull()
+            } else null
+            ApiResult.NotConfigured, is ApiResult.Failure -> null
+        } ?: return false
+
+        val accountId = accountJson.optString("id")
+        val profileAccountId = profileJson.optString("accountId")
+        val email = accountJson.optString("email")
+        if (accountId.isBlank() || accountId != profileAccountId || email.isBlank() ||
+            accountJson.optString("status") != AccountStatus.ACTIVE
+        ) return false
+
+        val now = now()
+        backend_profile = Profile(
+            profile_id = profileJson.optString("id"),
+            identity_ref = accountId,
+            profile_type = ProfileType.DRIVER,
+            first_name = profileJson.optString("firstName"),
+            last_name = profileJson.optString("lastName"),
+            email = email,
+            phone = profileJson.optString("phone"),
+            status = AccountStatus.ACTIVE,
+            created_at = profileJson.optString("createdAt").ifBlank { now },
+            updated_at = profileJson.optString("updatedAt").ifBlank { now },
+        )
+        active_session_id = null
+        backend_refresh_expires_at = SpotGoApi.current_refresh_expires_at()
+        FcmDeviceRegistration.registerCurrentInstallation()
+        return true
     }
 
     /** Profile linked to the active session, if any. */
@@ -527,6 +590,151 @@ object AuthRepository {
         val account = SpotGoDatabase.accounts.firstOrNull { it.account_id == session.account_id }
             ?: return null
         return profileFor(account)
+    }
+
+    fun update_account_details(
+        first_name: String,
+        last_name: String,
+        email: String,
+        phone: String,
+    ): AccountDetailsUpdateResult {
+        val current = current_profile() ?: return AccountDetailsUpdateResult.Failure
+        val cleanFirstName = first_name.trim()
+        val cleanLastName = last_name.trim()
+        val cleanEmail = email.trim()
+        val cleanPhone = phone.trim()
+        if (cleanFirstName.isBlank() || cleanLastName.isBlank() || cleanPhone.isBlank() ||
+            !android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()
+        ) return AccountDetailsUpdateResult.InvalidDetails
+
+        if (SpotGoApi.is_configured()) {
+            val body = JSONObject()
+                .put("email", cleanEmail)
+                .put("firstName", cleanFirstName)
+                .put("lastName", cleanLastName)
+                .put("phone", cleanPhone)
+                .toString()
+            return when (val response = SpotGoApi.put("/api/v1/accounts/me", body)) {
+                is ApiResult.Success -> when {
+                    response.status in 200..299 -> {
+                        val root = runCatching { JSONObject(response.body) }.getOrNull()
+                            ?: return AccountDetailsUpdateResult.Failure
+                        val account = root.optJSONObject("account")
+                            ?: return AccountDetailsUpdateResult.Failure
+                        val profileJson = root.optJSONObject("profile")
+                            ?: return AccountDetailsUpdateResult.Failure
+                        val profileId = profileJson.optString("id").ifBlank { current.profile_id }
+                        val accountId = account.optString("id").ifBlank { current.identity_ref }
+                        val updated = current.copy(
+                            profile_id = profileId,
+                            identity_ref = accountId,
+                            first_name = profileJson.optString("firstName", cleanFirstName),
+                            last_name = profileJson.optString("lastName", cleanLastName),
+                            email = account.optString("email", cleanEmail),
+                            phone = profileJson.optString("phone", cleanPhone),
+                            updated_at = profileJson.optString("updatedAt").ifBlank { now() },
+                        )
+                        cacheBackendProfile(updated)
+                        AccountDetailsUpdateResult.Success(updated)
+                    }
+                    response.status == 409 -> AccountDetailsUpdateResult.EmailAlreadyInUse
+                    response.status == 400 -> AccountDetailsUpdateResult.InvalidDetails
+                    else -> AccountDetailsUpdateResult.Failure
+                }
+                ApiResult.NotConfigured, is ApiResult.Failure -> AccountDetailsUpdateResult.Failure
+            }
+        }
+
+        val accountId = current.identity_ref
+        if (SpotGoDatabase.accounts.any {
+                it.account_id != accountId && it.email.equals(cleanEmail, ignoreCase = true)
+            }
+        ) return AccountDetailsUpdateResult.EmailAlreadyInUse
+        val profileIndex = SpotGoDatabase.profiles.indexOfFirst { it.profile_id == current.profile_id }
+        val accountIndex = SpotGoDatabase.accounts.indexOfFirst { it.account_id == accountId }
+        if (profileIndex < 0 || accountIndex < 0) return AccountDetailsUpdateResult.Failure
+        val timestamp = now()
+        val updated = current.copy(
+            first_name = cleanFirstName,
+            last_name = cleanLastName,
+            email = cleanEmail,
+            phone = cleanPhone,
+            updated_at = timestamp,
+        )
+        SpotGoDatabase.profiles[profileIndex] = updated
+        SpotGoDatabase.accounts[accountIndex] = SpotGoDatabase.accounts[accountIndex].copy(
+            email = cleanEmail,
+            updated_at = timestamp,
+        )
+        return AccountDetailsUpdateResult.Success(updated)
+    }
+
+    fun update_password(currentPassword: String, newPassword: String): PasswordChangeResult {
+        if (currentPassword.isBlank()) return PasswordChangeResult.INVALID_CURRENT_PASSWORD
+        if (!isPasswordValid(newPassword)) return PasswordChangeResult.PASSWORD_REQUIREMENTS
+        if (currentPassword == newPassword) return PasswordChangeResult.PASSWORD_REUSED
+
+        if (SpotGoApi.is_configured()) {
+            val body = JSONObject()
+                .put("currentPassword", currentPassword)
+                .put("newPassword", newPassword)
+                .toString()
+            return when (val response = SpotGoApi.patch("/api/v1/accounts/me/password", body)) {
+                is ApiResult.Success -> when {
+                    response.status in 200..299 -> PasswordChangeResult.SUCCESS
+                    response.status == 400 -> passwordError(response.body)
+                    else -> PasswordChangeResult.FAILURE
+                }
+                ApiResult.NotConfigured, is ApiResult.Failure -> PasswordChangeResult.FAILURE
+            }
+        }
+
+        val profile = current_profile() ?: return PasswordChangeResult.FAILURE
+        val accountId = profile.identity_ref
+        val credentialIndex = SpotGoDatabase.credentials.indexOfFirst {
+            it.account_id == accountId && it.authentication_method == AuthMethod.SPOTGO_CREDENTIALS &&
+                it.status == AccountStatus.ACTIVE
+        }
+        if (credentialIndex < 0) return PasswordChangeResult.LOCAL_PASSWORD_UNAVAILABLE
+        val credential = SpotGoDatabase.credentials[credentialIndex]
+        if (credential.secret_hash != sha256(currentPassword)) return PasswordChangeResult.INVALID_CURRENT_PASSWORD
+        SpotGoDatabase.credentials[credentialIndex] = credential.copy(secret_hash = sha256(newPassword))
+        val timestamp = now()
+        SpotGoDatabase.sessions.indices.forEach { index ->
+            val session = SpotGoDatabase.sessions[index]
+            if (session.account_id == accountId && session.status == SessionStatus.ACTIVE) {
+                SpotGoDatabase.sessions[index] = session.copy(status = SessionStatus.REVOKED, revoked_at = timestamp)
+            }
+        }
+        active_session_id = null
+        return PasswordChangeResult.SUCCESS
+    }
+
+    private fun passwordError(body: String): PasswordChangeResult {
+        val message = runCatching { JSONObject(body).optString("message") }
+            .getOrDefault(body).lowercase()
+        return when {
+            "current password is incorrect" in message -> PasswordChangeResult.INVALID_CURRENT_PASSWORD
+            "does not have a local password" in message -> PasswordChangeResult.LOCAL_PASSWORD_UNAVAILABLE
+            "must be different" in message -> PasswordChangeResult.PASSWORD_REUSED
+            "password" in message -> PasswordChangeResult.PASSWORD_REQUIREMENTS
+            else -> PasswordChangeResult.FAILURE
+        }
+    }
+
+    private fun cacheBackendProfile(profile: Profile) {
+        backend_profile = profile
+        val profileIndex = SpotGoDatabase.profiles.indexOfFirst {
+            it.profile_id == profile.profile_id || it.identity_ref == profile.identity_ref
+        }
+        if (profileIndex >= 0) SpotGoDatabase.profiles[profileIndex] = profile
+        else SpotGoDatabase.profiles += profile
+
+        val accountIndex = SpotGoDatabase.accounts.indexOfFirst { it.account_id == profile.identity_ref }
+        if (accountIndex >= 0) SpotGoDatabase.accounts[accountIndex] = SpotGoDatabase.accounts[accountIndex].copy(
+            email = profile.email,
+            updated_at = profile.updated_at,
+        )
     }
 
     private fun startSession(account: Account, profile: Profile, ttlSeconds: Long = SESSION_TTL_DEFAULT_SECONDS): AuthResult {
@@ -546,14 +754,14 @@ object AuthRepository {
         return AuthResult.Success(session, profile)
     }
 
-    private fun signInWithBackend(email: String, password: String): AuthResult {
+    private fun signInWithBackend(email: String, password: String, keepSignedIn: Boolean): AuthResult {
         if (email.isBlank() || password.isBlank()) return AuthResult.Failure(AuthError.INVALID_FORM)
         val body = JSONObject().put("email", email).put("password", password).toString()
         return when (val result = SpotGoApi.post("/api/v1/authentication/sign-in", body).also {
-            if (BuildConfig.DEBUG) Log.d("SpotGoAuth", "Password sign-in result: ${it.statusName()}")
+            debugLog("Password sign-in result: ${it.statusName()}")
         }) {
             is ApiResult.Success -> when {
-                result.status in 200..299 -> authenticateBackendUser(JSONObject(result.body))
+                result.status in 200..299 -> authenticateBackendUser(JSONObject(result.body), keepSignedIn)
                 result.status == 401 -> AuthResult.Failure(AuthError.INVALID_CREDENTIALS)
                 else -> AuthResult.Failure(AuthError.API_ERROR)
             }
@@ -585,7 +793,7 @@ object AuthRepository {
         val access = auth.optString("accessToken")
         val refresh = auth.optString("refreshToken")
         if (access.isBlank() || refresh.isBlank()) return AuthResult.Failure(AuthError.API_ERROR)
-        SpotGoApi.set_tokens(access, refresh)
+        SpotGoApi.set_tokens(access, refresh, auth.optString("refreshExpiresAt"))
         val profileBody = JSONObject()
             .put("firstName", firstName.trim())
             .put("lastName", lastName.trim())
@@ -608,15 +816,15 @@ object AuthRepository {
         }
     }
 
-    private fun authenticateBackendUser(auth: JSONObject): AuthResult {
+    private fun authenticateBackendUser(auth: JSONObject, keepSignedIn: Boolean = true): AuthResult {
         if (auth.optString("role") != "DRIVER") return AuthResult.Failure(AuthError.INVALID_CREDENTIALS)
         val access = auth.optString("accessToken")
         val refresh = auth.optString("refreshToken")
         if (access.isBlank() || refresh.isBlank()) return AuthResult.Failure(AuthError.API_ERROR)
-        SpotGoApi.set_tokens(access, refresh)
+        SpotGoApi.set_tokens(access, refresh, auth.optString("refreshExpiresAt"), keepSignedIn)
         backend_refresh_expires_at = auth.optString("refreshExpiresAt").takeIf(String::isNotBlank)
         return when (val result = SpotGoApi.get("/api/v1/profiles/me").also {
-            if (BuildConfig.DEBUG) Log.d("SpotGoAuth", "Profile lookup result: ${it.statusName()}")
+            debugLog("Profile lookup result: ${it.statusName()}")
         }) {
             is ApiResult.Success -> {
                 when {
@@ -758,6 +966,10 @@ object AuthRepository {
 
     private fun newId(prefix: String): String =
         "$prefix-${UUID.randomUUID().toString().take(12).uppercase()}"
+
+    private fun debugLog(message: String) {
+        if (BuildConfig.DEBUG) runCatching { Log.d("SpotGoAuth", message) }
+    }
 
     private fun now(): String = Instant.now().toString()
 }

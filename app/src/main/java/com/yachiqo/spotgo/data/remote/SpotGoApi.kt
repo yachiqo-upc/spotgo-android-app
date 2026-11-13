@@ -20,11 +20,14 @@ sealed interface ApiResult {
 object SpotGoApi {
     private const val ACCESS_KEY = "access_token"
     private const val REFRESH_KEY = "refresh_token"
+    private const val REFRESH_EXPIRY_KEY = "refresh_expires_at"
     private const val REFRESH_PATH = "/api/v1/authentication/refresh"
     private val tokenLock = Any()
 
     @Volatile private var accessToken: String? = null
     @Volatile private var refreshToken: String? = null
+    @Volatile private var refreshExpiresAt: String? = null
+    @Volatile private var persistTokens = false
     private var tokenStore: EncryptedTokenStore? = null
 
     val base_url: String
@@ -58,18 +61,35 @@ object SpotGoApi {
             tokenStore = EncryptedTokenStore(context.applicationContext)
             accessToken = tokenStore?.read(ACCESS_KEY)
             refreshToken = tokenStore?.read(REFRESH_KEY)
+            refreshExpiresAt = tokenStore?.read(REFRESH_EXPIRY_KEY)
+            persistTokens = !accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()
         }
     }
 
     fun current_access_token(): String? = accessToken
     fun current_refresh_token(): String? = refreshToken
+    fun current_refresh_expires_at(): String? = refreshExpiresAt
 
-    fun set_tokens(access: String, refresh: String) {
+    fun set_tokens(
+        access: String,
+        refresh: String,
+        refreshExpiresAt: String? = null,
+        persist: Boolean = true,
+    ) {
         synchronized(tokenLock) {
             accessToken = access
             refreshToken = refresh
-            tokenStore?.write(ACCESS_KEY, access)
-            tokenStore?.write(REFRESH_KEY, refresh)
+            this.refreshExpiresAt = refreshExpiresAt
+            persistTokens = persist
+            if (persist) {
+                tokenStore?.write(ACCESS_KEY, access)
+                tokenStore?.write(REFRESH_KEY, refresh)
+                refreshExpiresAt?.takeIf(String::isNotBlank)?.let {
+                    tokenStore?.write(REFRESH_EXPIRY_KEY, it)
+                }
+            } else {
+                tokenStore?.clear()
+            }
         }
     }
 
@@ -77,6 +97,8 @@ object SpotGoApi {
         synchronized(tokenLock) {
             accessToken = null
             refreshToken = null
+            refreshExpiresAt = null
+            persistTokens = false
             tokenStore?.clear()
         }
     }
@@ -89,6 +111,12 @@ object SpotGoApi {
         request("POST", path, jsonBody, authenticated = path !in PUBLIC_POST_PATHS)
 
     fun put(path: String): ApiResult = request("PUT", path, null, authenticated = true)
+
+    fun put(path: String, jsonBody: String): ApiResult =
+        request("PUT", path, jsonBody, authenticated = true)
+
+    fun patch(path: String, jsonBody: String): ApiResult =
+        request("PATCH", path, jsonBody, authenticated = true)
 
     fun delete(path: String): ApiResult = request("DELETE", path, null, authenticated = true)
 
@@ -137,10 +165,15 @@ object SpotGoApi {
             val json = JSONObject(response.body)
             val access = json.getString("accessToken")
             val nextRefresh = json.getString("refreshToken")
+            val nextRefreshExpiry = json.optString("refreshExpiresAt").takeIf(String::isNotBlank)
             accessToken = access
             refreshToken = nextRefresh
-            tokenStore?.write(ACCESS_KEY, access)
-            tokenStore?.write(REFRESH_KEY, nextRefresh)
+            nextRefreshExpiry?.let { refreshExpiresAt = it }
+            if (persistTokens) {
+                tokenStore?.write(ACCESS_KEY, access)
+                tokenStore?.write(REFRESH_KEY, nextRefresh)
+                refreshExpiresAt?.let { tokenStore?.write(REFRESH_EXPIRY_KEY, it) }
+            }
         }.getOrElse {
             clear_tokens()
             return@synchronized false

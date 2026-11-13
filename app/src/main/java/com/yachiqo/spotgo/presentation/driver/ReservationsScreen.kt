@@ -50,7 +50,6 @@ private val TAB_STATUSES = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReservationsScreen(
-    onProfile: () -> Unit,
     onOpenReservation: (String) -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -89,7 +88,7 @@ fun ReservationsScreen(
     val visible = if (tab == 0) filtered.sortedBy { it.start_at }
     else filtered.sortedByDescending { it.start_at }
 
-    DriverPage(stringResource(R.string.reservations_title), stringResource(R.string.reservations_subtitle), onProfile) {
+    DriverPage(stringResource(R.string.reservations_title), stringResource(R.string.reservations_subtitle)) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             listOf(R.string.reservations_upcoming, R.string.reservations_completed, R.string.reservations_cancelled)
                 .forEachIndexed { index, label ->
@@ -200,5 +199,5 @@ private fun ReservationCard(reservation: Reservation, backendMode: Boolean, onVi
 @Preview(widthDp = 412, heightDp = 915)
 @Composable
 private fun ReservationsPreview() {
-    SpotGoTheme { ReservationsScreen({}, {}) }
+    SpotGoTheme { ReservationsScreen({}) }
 }
