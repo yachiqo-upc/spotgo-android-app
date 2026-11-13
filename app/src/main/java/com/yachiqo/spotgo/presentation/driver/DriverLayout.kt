@@ -40,7 +40,7 @@ enum class DriverDestination(@get:StringRes val label: Int, @get:DrawableRes val
 
 private enum class DriverFlow {
     MAIN, ZONE_DETAILS, CONFIRMED, VEHICLES, VEHICLE_ADD, RESERVATION_DETAILS, RESERVATION_EDIT,
-    PAYMENT_BALANCE, RECEIPTS, RECEIPT_DETAIL, PLANS,
+    PAYMENT_BALANCE, RECEIPTS, RECEIPT_DETAIL, PLANS, PERSONAL_INFORMATION,
 }
 
 @Composable
@@ -77,8 +77,10 @@ fun DriverLayout(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             if (flow == DriverFlow.MAIN || flow == DriverFlow.CONFIRMED) {
-                NavigationBar(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars).height(64.dp),
-                    windowInsets = WindowInsets(0), containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                NavigationBar(
+                    windowInsets = WindowInsets.navigationBars,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ) {
                     DriverDestination.entries.forEach { item ->
                         NavigationBarItem(
                             selected = item == if (flow == DriverFlow.CONFIRMED) DriverDestination.RESERVATIONS else destination,
@@ -136,6 +138,10 @@ fun DriverLayout(
                 onBack = { flow = DriverFlow.MAIN },
                 onNotice = notice,
             )
+            else if (flow == DriverFlow.PERSONAL_INFORMATION) PersonalInformationScreen(
+                onBack = { flow = DriverFlow.MAIN },
+                onPasswordChanged = onBackToLogin,
+            )
             else if (flow == DriverFlow.VEHICLES) MyVehiclesScreen(
                 onBack = { flow = DriverFlow.MAIN },
                 onAddVehicle = { flow = DriverFlow.VEHICLE_ADD },
@@ -161,15 +167,12 @@ fun DriverLayout(
             else when (destination) {
                 DriverDestination.EXPLORE -> ExploreParkingScreen(
                     onOpenZone = { zoneId = it; flow = DriverFlow.ZONE_DETAILS },
-                    onProfile = { destination = DriverDestination.PROFILE },
                     onUnavailableAction = unavailableAction,
                 )
                 DriverDestination.RESERVATIONS -> ReservationsScreen(
-                    onProfile = { destination = DriverDestination.PROFILE },
                     onOpenReservation = { reservationId = it; flow = DriverFlow.RESERVATION_DETAILS },
                 )
                 DriverDestination.PAYMENTS -> PaymentsScreen(
-                    onProfile = { destination = DriverDestination.PROFILE },
                     onOpenBalance = { flow = DriverFlow.PAYMENT_BALANCE },
                     onOpenReceipts = { flow = DriverFlow.RECEIPTS },
                     onOpenDocument = { documentId = it; flow = DriverFlow.RECEIPT_DETAIL },
@@ -179,6 +182,7 @@ fun DriverLayout(
                     onSignOut = onBackToLogin,
                     onMyVehicles = { flow = DriverFlow.VEHICLES },
                     onPlans = { flow = DriverFlow.PLANS },
+                    onPersonalInformation = { flow = DriverFlow.PERSONAL_INFORMATION },
                     onUnavailableAction = unavailableAction,
                 )
             }

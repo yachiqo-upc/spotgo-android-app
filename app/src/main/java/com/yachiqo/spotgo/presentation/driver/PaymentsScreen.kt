@@ -12,6 +12,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -36,7 +37,6 @@ import kotlinx.coroutines.withContext
 
 @Composable
 fun PaymentsScreen(
-    onProfile: () -> Unit,
     onOpenBalance: () -> Unit,
     onOpenReceipts: () -> Unit,
     onOpenDocument: (String) -> Unit,
@@ -52,6 +52,8 @@ fun PaymentsScreen(
     var simulatedBrand by remember { mutableStateOf("visa") }
     var simulatedLastFour by remember { mutableStateOf("4242") }
     var addingMethod by remember { mutableStateOf(false) }
+    var methodPendingRemoval by remember { mutableStateOf<RemotePaymentMethod?>(null) }
+    var removingMethod by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -87,8 +89,10 @@ fun PaymentsScreen(
     val methodAddedMessage = stringResource(R.string.payments_method_added)
     val favoriteUpdatedMessage = stringResource(R.string.payments_favorite_updated)
     val methodSaveFailedMessage = stringResource(R.string.payments_method_save_failed)
+    val methodRemovedMessage = stringResource(R.string.payments_method_removed)
+    val methodRemoveFailedMessage = stringResource(R.string.payments_method_remove_failed)
 
-    DriverPage(stringResource(R.string.driver_payments), stringResource(R.string.payments_subtitle), onProfile) {
+    DriverPage(stringResource(R.string.driver_payments), stringResource(R.string.payments_subtitle)) {
         when {
             loading -> DriverPanel {
                 Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
@@ -144,28 +148,40 @@ fun PaymentsScreen(
                                         style = MaterialTheme.typography.bodyMedium)
                                 },
                                 trailingContent = {
-                                    if (method.isDefault) {
-                                        StatusBadge(stringResource(R.string.payments_favorite), positive = true)
-                                    } else {
-                                        TextButton(onClick = {
-                                            scope.launch {
-                                                val saved = withContext(Dispatchers.IO) {
-                                                    RemoteBillingRepository.setDefaultPaymentMethod(method.tokenId)
-                                                }
-                                                if (saved) {
-                                                    val refreshed = withContext(Dispatchers.IO) {
-                                                        RemoteBillingRepository.loadPaymentMethods()
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (method.isDefault) {
+                                            StatusBadge(stringResource(R.string.payments_favorite), positive = true)
+                                        } else {
+                                            TextButton(onClick = {
+                                                scope.launch {
+                                                    val saved = withContext(Dispatchers.IO) {
+                                                        RemoteBillingRepository.setDefaultPaymentMethod(method.tokenId)
                                                     }
-                                                    val currentMethods = methods.orEmpty()
-                                                    methods = (refreshed as? RemotePaymentMethodsResult.Success)?.methods
-                                                        ?: currentMethods.map { it.copy(isDefault = it.tokenId == method.tokenId) }
-                                                    onNotice(favoriteUpdatedMessage)
-                                                } else {
-                                                    onNotice(methodSaveFailedMessage)
+                                                    if (saved) {
+                                                        val refreshed = withContext(Dispatchers.IO) {
+                                                            RemoteBillingRepository.loadPaymentMethods()
+                                                        }
+                                                        val currentMethods = methods.orEmpty()
+                                                        methods = (refreshed as? RemotePaymentMethodsResult.Success)?.methods
+                                                            ?: currentMethods.map { it.copy(isDefault = it.tokenId == method.tokenId) }
+                                                        onNotice(favoriteUpdatedMessage)
+                                                    } else {
+                                                        onNotice(methodSaveFailedMessage)
+                                                    }
                                                 }
+                                            }) {
+                                                Text(stringResource(R.string.payments_set_favorite))
                                             }
-                                        }) {
-                                            Text(stringResource(R.string.payments_set_favorite))
+                                        }
+                                        IconButton(
+                                            onClick = { methodPendingRemoval = method },
+                                            enabled = !removingMethod,
+                                        ) {
+                                            Icon(
+                                                painter = painterResource(R.drawable.ic_delete),
+                                                contentDescription = stringResource(R.string.payments_remove_method),
+                                                tint = MaterialTheme.colorScheme.error,
+                                            )
                                         }
                                     }
                                 },
@@ -277,6 +293,47 @@ fun PaymentsScreen(
             }
         }
     }
+
+    methodPendingRemoval?.let { method ->
+        AlertDialog(
+            onDismissRequest = { if (!removingMethod) methodPendingRemoval = null },
+            title = { Text(stringResource(R.string.payments_remove_method_title)) },
+            text = { Text(stringResource(R.string.payments_remove_method_message, method.label)) },
+            confirmButton = {
+                TextButton(
+                    enabled = !removingMethod,
+                    onClick = {
+                        removingMethod = true
+                        scope.launch {
+                            val removed = withContext(Dispatchers.IO) {
+                                RemoteBillingRepository.removePaymentMethod(method.tokenId)
+                            }
+                            if (removed) {
+                                val refreshed = withContext(Dispatchers.IO) {
+                                    RemoteBillingRepository.loadPaymentMethods()
+                                }
+                                methods = (refreshed as? RemotePaymentMethodsResult.Success)?.methods
+                                    ?: methods.orEmpty().filterNot { it.tokenId == method.tokenId }
+                                methodPendingRemoval = null
+                                onNotice(methodRemovedMessage)
+                            } else {
+                                onNotice(methodRemoveFailedMessage)
+                            }
+                            removingMethod = false
+                        }
+                    },
+                ) {
+                    if (removingMethod) CircularProgressIndicator(Modifier.size(18.dp))
+                    else Text(stringResource(R.string.payments_remove_method))
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !removingMethod, onClick = { methodPendingRemoval = null }) {
+                    Text(stringResource(R.string.payments_cancel))
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -290,5 +347,5 @@ private fun paymentSummary(payment: RemoteDigitalPayment): String = when (paymen
 @Preview(widthDp = 412, heightDp = 915)
 @Composable
 private fun PaymentsPreview() {
-    SpotGoTheme { PaymentsScreen({}, {}, {}, {}, {}) }
+    SpotGoTheme { PaymentsScreen({}, {}, {}, {}) }
 }

@@ -5,6 +5,9 @@ import com.yachiqo.spotgo.data.remote.SpotGoApi
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 data class RemotePaymentMethod(
     val tokenId: String,
@@ -116,6 +119,10 @@ sealed interface RemotePaymentResult {
 /** All billing reads and writes in the Driver app go through the SpotGo API. */
 object RemoteBillingRepository {
 
+    private val finalPaymentStatuses = setOf("APPROVED", "REJECTED", "CANCELLED")
+    private const val PAYMENT_STATUS_POLL_INTERVAL_MS = 300L
+    private const val PAYMENT_STATUS_POLL_ATTEMPTS = 20
+
     fun loadPaymentMethods(): RemotePaymentMethodsResult {
         val rows = getArray("/api/v1/payment-tokens") ?: return RemotePaymentMethodsResult.Failure
         return RemotePaymentMethodsResult.Success(buildList {
@@ -145,6 +152,14 @@ object RemoteBillingRepository {
     fun setDefaultPaymentMethod(tokenId: String): Boolean {
         if (tokenId.isBlank()) return false
         return when (val response = SpotGoApi.put("/api/v1/payment-tokens/$tokenId/default")) {
+            is ApiResult.Success -> response.status in 200..299
+            ApiResult.NotConfigured, is ApiResult.Failure -> false
+        }
+    }
+
+    fun removePaymentMethod(tokenId: String): Boolean {
+        if (tokenId.isBlank()) return false
+        return when (val response = SpotGoApi.delete("/api/v1/payment-tokens/$tokenId")) {
             is ApiResult.Success -> response.status in 200..299
             ApiResult.NotConfigured, is ApiResult.Failure -> false
         }
@@ -254,6 +269,20 @@ object RemoteBillingRepository {
     fun payment(paymentId: String): RemotePaymentResult =
         fetchPayment(paymentId)?.let { RemotePaymentResult.Success(it.status, it.paymentId) }
             ?: RemotePaymentResult.Failure
+
+    /** Waits for asynchronous provider reconciliation without blocking the UI thread. */
+    suspend fun awaitPaymentResolution(initial: RemotePaymentResult): RemotePaymentResult {
+        var latest = (initial as? RemotePaymentResult.Success) ?: return initial
+        if (latest.status in finalPaymentStatuses) return latest
+
+        repeat(PAYMENT_STATUS_POLL_ATTEMPTS) {
+            delay(PAYMENT_STATUS_POLL_INTERVAL_MS)
+            val refreshed = withContext(Dispatchers.IO) { payment(latest.paymentId) }
+            if (refreshed is RemotePaymentResult.Success) latest = refreshed
+            if (latest.status in finalPaymentStatuses) return latest
+        }
+        return latest
+    }
 
     fun process(paymentId: String): RemotePaymentResult =
         paymentAction("/api/v1/digital-payments/$paymentId/process", "{}", paymentId)

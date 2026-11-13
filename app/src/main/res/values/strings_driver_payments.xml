@@ -23,6 +23,11 @@
     <string name="payments_favorite">Favorite</string>
     <string name="payments_set_favorite">Set favorite</string>
     <string name="payments_method_added">Simulated payment method saved.</string>
+    <string name="payments_remove_method">Remove payment method</string>
+    <string name="payments_remove_method_title">Remove payment method?</string>
+    <string name="payments_remove_method_message">Remove %1$s from this account?</string>
+    <string name="payments_method_removed">Payment method removed.</string>
+    <string name="payments_method_remove_failed">Payment method could not be removed.</string>
     <string name="payments_favorite_updated">Favorite payment method updated.</string>
     <string name="payments_method_save_failed">Payment method could not be saved. Check the backend connection and card details.</string>
     <string name="payments_transactions">Recent transactions</string>

@@ -6,8 +6,14 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,6 +22,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
@@ -31,10 +39,12 @@ import com.yachiqo.spotgo.presentation.login.CompleteProfileScreen
 import com.yachiqo.spotgo.presentation.login.LoginScreen
 import com.yachiqo.spotgo.presentation.login.RegisterScreen
 import com.yachiqo.spotgo.ui.theme.SpotGoWarning
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 // UI destinations. Authentication state lives in AuthRepository (in-memory).
-private enum class AppDestination { LOGIN, REGISTER, FORGOT_PASSWORD, COMPLETE_PROFILE, DRIVER }
+private enum class AppDestination { RESTORING, LOGIN, REGISTER, FORGOT_PASSWORD, COMPLETE_PROFILE, DRIVER }
 
 @Composable
 fun SpotGoApp() {
@@ -46,7 +56,7 @@ fun SpotGoApp() {
     val notificationPermissionRequest = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { }
-    var destination by rememberSaveable { mutableStateOf(AppDestination.LOGIN) }
+    var destination by rememberSaveable { mutableStateOf(AppDestination.RESTORING) }
     var sessionExpiredSheet by remember { mutableStateOf(false) }
     val backToLogin = {
         AuthRepository.sign_out()
@@ -65,6 +75,11 @@ fun SpotGoApp() {
         destination = AppDestination.DRIVER
     }
 
+    LaunchedEffect(Unit) {
+        val restored = withContext(Dispatchers.IO) { AuthRepository.restore_backend_session() }
+        if (restored) enterDriver() else destination = AppDestination.LOGIN
+    }
+
     // US09 — require authentication after the session expires.
     LaunchedEffect(destination) {
         if (destination == AppDestination.DRIVER) {
@@ -78,10 +93,25 @@ fun SpotGoApp() {
         }
     }
 
-    BackHandler(enabled = destination != AppDestination.LOGIN, onBack = backToLogin)
+    BackHandler(
+        enabled = destination != AppDestination.LOGIN && destination != AppDestination.RESTORING,
+        onBack = backToLogin,
+    )
 
     Surface(modifier = Modifier.fillMaxSize()) {
         when (destination) {
+            AppDestination.RESTORING -> Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                CircularProgressIndicator()
+                Text(
+                    text = stringResource(R.string.session_restoring),
+                    modifier = Modifier.padding(top = 16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
             AppDestination.LOGIN -> LoginScreen(
                 onOpenDriver = enterDriver,
                 onCreateAccount = { destination = AppDestination.REGISTER },

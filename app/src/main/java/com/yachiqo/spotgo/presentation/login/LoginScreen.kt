@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -54,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
@@ -90,6 +92,7 @@ fun LoginScreen(
     // Password is temporary UI state and is never persisted in saved instance state.
     val password = remember { TextFieldState() }
     var keepSignedIn by rememberSaveable { mutableStateOf(true) }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var authError by remember { mutableStateOf<AuthError?>(null) }
     var googleSheetVisible by remember { mutableStateOf(false) }
     // Pendiente 2 — real Google sign-in runs while the account sheet opens.
@@ -169,16 +172,21 @@ fun LoginScreen(
                         label = { Text(stringResource(R.string.login_password)) },
                         placeholder = { Text(stringResource(R.string.login_password_placeholder)) },
                         trailingIcon = {
-                            IconButton(onClick = { password.edit { replace(0, length, "") } }) {
-                                FigmaIcon(
-                                    R.drawable.ic_cancel,
-                                    contentDescription = stringResource(R.string.login_clear_password),
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    painter = painterResource(
+                                        if (passwordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility,
+                                    ),
+                                    contentDescription = stringResource(
+                                        if (passwordVisible) R.string.login_hide_password else R.string.login_show_password,
+                                    ),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         },
                         modifier = Modifier.fillMaxWidth().figmaFieldBounds(),
                         shape = RoundedCornerShape(16.dp),
-                        textObfuscationMode = TextObfuscationMode.Hidden,
+                        textObfuscationMode = if (passwordVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                         onKeyboardAction = { focusManager.clearFocus() },
                         colors = loginFieldColors(),

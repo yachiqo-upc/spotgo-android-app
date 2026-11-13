@@ -109,7 +109,9 @@ fun PlansScreen(
                     DriverPanel(outlined = true) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(stringResource(R.string.plans_current_label), style = MaterialTheme.typography.labelLarge)
-                            Text(activeSubscription?.planCode ?: stringResource(R.string.plans_no_active),
+                            Text(activeSubscription?.let {
+                                stringResource(planDisplayNameResource(it.planCode))
+                            } ?: stringResource(R.string.plans_no_active),
                                 style = MaterialTheme.typography.titleMedium, color = SpotGoAccent)
                             activeSubscription?.endAt?.let {
                                 Text(stringResource(R.string.plans_end_date, isoDateLabel(it)),
@@ -125,7 +127,7 @@ fun PlansScreen(
                     }
                     plans.orEmpty().forEach { plan ->
                         val isCurrent = activeSubscription?.planCode == plan.code
-                        val planName = planDisplayName(plan)
+                        val planName = stringResource(planDisplayNameResource(plan.code))
                         PlanCard(
                             name = planName,
                             price = plan.price.toDoubleOrNull()?.let(::money)
@@ -148,9 +150,10 @@ fun PlansScreen(
                                     busy = true
                                     busyPlanCode = plan.code
                                     scope.launch {
-                                        val payment = withContext(Dispatchers.IO) {
+                                        val initialPayment = withContext(Dispatchers.IO) {
                                             RemoteBillingRepository.paySubscription(plan.code, method.tokenId)
                                         }
+                                        val payment = RemoteBillingRepository.awaitPaymentResolution(initialPayment)
                                         busy = false
                                         busyPlanCode = ""
                                         when (payment) {
@@ -203,13 +206,6 @@ fun PlansScreen(
             }
         }
     }
-}
-
-@Composable
-private fun planDisplayName(plan: RemoteSubscriptionPlan): String = when (plan.code) {
-    "DRIVER_MONTHLY" -> stringResource(R.string.plans_monthly_name)
-    "DRIVER_ANNUAL" -> stringResource(R.string.plans_annual_name)
-    else -> plan.code
 }
 
 @Composable
