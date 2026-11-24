@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yachiqo.spotgo.R
@@ -31,6 +32,7 @@ internal fun DriverPage(
     title: String,
     subtitle: String? = null,
     prominentTitle: Boolean = false,
+    contentTopPadding: Dp = 18.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -49,7 +51,7 @@ internal fun DriverPage(
             }
         }
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = 18.dp, bottom = 18.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(top = contentTopPadding, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             content = content,
         )

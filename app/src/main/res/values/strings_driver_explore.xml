@@ -3,7 +3,7 @@
     <string name="explore_subtitle">Availability and rates from SpotGo parking operators.</string>
     <string name="explore_search">Search parking zones</string>
     <string name="explore_all">All</string>
-    <string name="explore_saved">Saved</string>
+    <string name="explore_saved">Favorites</string>
     <string name="explore_no_saved">No saved parking yet. Tap the heart of a parking to keep it here.</string>
     <string name="explore_last_updated">Last updated · %1$s</string>
     <string name="explore_refresh">↻ Refresh</string>
@@ -28,4 +28,7 @@
     <string name="explore_map_zoom_out">Zoom out</string>
     <string name="explore_map_show_arrows">Show map arrows</string>
     <string name="explore_map_hide_arrows">Hide map arrows</string>
+    <string name="explore_spaces_available">Spaces available</string>
+    <string name="explore_covered_parking">Covered parking</string>
+    <string name="explore_electric_charging">Electric charging</string>
 </resources>

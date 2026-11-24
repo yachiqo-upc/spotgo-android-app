@@ -3,8 +3,8 @@
     <string name="explore_title">Estacionamientos cercanos</string>
     <string name="explore_subtitle">Disponibilidad y tarifas de los operadores de estacionamiento de SpotGo.</string>
     <string name="explore_search">Buscar zonas de estacionamiento</string>
-    <string name="explore_all">Todas</string>
-    <string name="explore_saved">Guardados</string>
+    <string name="explore_all">Todos</string>
+    <string name="explore_saved">Favoritos</string>
     <string name="explore_no_saved">Todavía no guardaste estacionamientos. Toca el corazón para agregarlos aquí.</string>
     <string name="explore_last_updated">Última actualización · %1$s</string>
     <string name="explore_refresh">↻ Actualizar</string>
@@ -29,4 +29,7 @@
     <string name="explore_map_zoom_out">Alejar mapa</string>
     <string name="explore_map_show_arrows">Mostrar flechas del mapa</string>
     <string name="explore_map_hide_arrows">Ocultar flechas del mapa</string>
+    <string name="explore_spaces_available">Plazas disponibles</string>
+    <string name="explore_covered_parking">Estacionamiento techado</string>
+    <string name="explore_electric_charging">Carga eléctrica</string>
 </resources>

@@ -119,6 +119,7 @@ fun ExploreParkingScreen(
         stringResource(R.string.explore_title),
         stringResource(R.string.explore_subtitle),
         prominentTitle = true,
+        contentTopPadding = 10.dp,
     ) {
         SearchBar(
             inputField = {
@@ -146,9 +147,9 @@ fun ExploreParkingScreen(
         ) {
             listOf(
                 R.string.explore_all,
-                R.string.driver_available,
-                R.string.driver_covered,
-                R.string.driver_ev,
+                R.string.explore_spaces_available,
+                R.string.explore_covered_parking,
+                R.string.explore_electric_charging,
                 R.string.explore_saved,
             )
                 .forEachIndexed { index, label ->
