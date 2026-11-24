@@ -87,7 +87,7 @@ import kotlin.math.roundToInt
 fun LoginScreen(
     onOpenDriver: () -> Unit,
     onCreateAccount: () -> Unit,
-    onForgotPassword: () -> Unit,
+    onForgotPassword: (String) -> Unit,
     onCompleteProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -224,7 +224,7 @@ fun LoginScreen(
                             Checkbox(checked = keepSignedIn, onCheckedChange = null, modifier = Modifier.size(48.dp))
                             Text(stringResource(R.string.login_remember), style = MaterialTheme.typography.bodyMedium)
                         }
-                        TextButton(onClick = { focusManager.clearFocus(); onForgotPassword() }) {
+                        TextButton(onClick = { focusManager.clearFocus(); onForgotPassword(email.text.toString().trim()) }) {
                             Text(stringResource(R.string.login_forgot_password))
                         }
                     }

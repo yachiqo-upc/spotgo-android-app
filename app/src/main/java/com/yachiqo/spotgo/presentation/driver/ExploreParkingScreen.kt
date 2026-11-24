@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -226,25 +225,23 @@ private fun ExploreMap(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        BoxWithConstraints(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))) {
-            val mapHeight = 349.dp * (maxWidth / 376.dp)
-            Box(Modifier.fillMaxWidth().height(mapHeight)) {
-                MapLibreMapView(
-                    points = facilities.map { facility ->
-                        ParkingMapPoint(
-                            id = facility.tenantId,
-                            title = facility.name,
-                            snippet = stringResource(R.string.explore_map_snippet, moneyWhole(facility.hourlyPrice), facility.zones.size),
-                            latitude = facility.latitude,
-                            longitude = facility.longitude,
-                        )
-                    },
-                    selectedPointId = selected?.tenantId,
-                    onSelectPoint = onSelectTenant,
-                    modifier = Modifier.matchParentSize(),
+        MapLibreMapView(
+            points = facilities.map { facility ->
+                ParkingMapPoint(
+                    id = facility.tenantId,
+                    title = facility.name,
+                    snippet = stringResource(R.string.explore_map_snippet, moneyWhole(facility.hourlyPrice), facility.zones.size),
+                    latitude = facility.latitude,
+                    longitude = facility.longitude,
                 )
-                LastUpdatedBar(lastUpdated, onRefresh, Modifier.align(Alignment.TopCenter))
-            }
+            },
+            selectedPointId = selected?.tenantId,
+            onSelectPoint = onSelectTenant,
+            followLocation = true,
+            modifier = Modifier.fillMaxWidth().height(236.dp).clip(RoundedCornerShape(24.dp)),
+            showCameraControls = true,
+        ) {
+            LastUpdatedBar(lastUpdated, onRefresh, Modifier.align(Alignment.TopCenter))
         }
     }
 }

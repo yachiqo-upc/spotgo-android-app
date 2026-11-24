@@ -17,4 +17,15 @@
     <string name="explore_map_snippet">From %1$s / hr · %2$d zones</string>
     <string name="explore_map_updated">Updated · %1$s</string>
     <string name="explore_backend_error">Could not load parking facilities or saved favorites. Check your connection and try again.</string>
+    <string name="explore_map_locating">Finding your location…</string>
+    <string name="explore_map_location_unavailable">Current location unavailable. Showing Lima.</string>
+    <string name="explore_map_location_denied">Allow location access to center the map on you.</string>
+    <string name="explore_map_pan_up">Move map up</string>
+    <string name="explore_map_pan_left">Move map left</string>
+    <string name="explore_map_pan_right">Move map right</string>
+    <string name="explore_map_pan_down">Move map down</string>
+    <string name="explore_map_zoom_in">Zoom in</string>
+    <string name="explore_map_zoom_out">Zoom out</string>
+    <string name="explore_map_show_arrows">Show map arrows</string>
+    <string name="explore_map_hide_arrows">Hide map arrows</string>
 </resources>

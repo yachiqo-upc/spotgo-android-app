@@ -18,4 +18,15 @@
     <string name="explore_map_snippet">Desde %1$s / h · %2$d zonas</string>
     <string name="explore_map_updated">Actualizado · %1$s</string>
     <string name="explore_backend_error">No se pudieron cargar los estacionamientos o tus favoritos. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="explore_map_locating">Buscando tu ubicación…</string>
+    <string name="explore_map_location_unavailable">No se pudo obtener tu ubicación. Mostrando Lima.</string>
+    <string name="explore_map_location_denied">Permite el acceso a tu ubicación para centrar el mapa.</string>
+    <string name="explore_map_pan_up">Mover mapa arriba</string>
+    <string name="explore_map_pan_left">Mover mapa a la izquierda</string>
+    <string name="explore_map_pan_right">Mover mapa a la derecha</string>
+    <string name="explore_map_pan_down">Mover mapa abajo</string>
+    <string name="explore_map_zoom_in">Acercar mapa</string>
+    <string name="explore_map_zoom_out">Alejar mapa</string>
+    <string name="explore_map_show_arrows">Mostrar flechas del mapa</string>
+    <string name="explore_map_hide_arrows">Ocultar flechas del mapa</string>
 </resources>

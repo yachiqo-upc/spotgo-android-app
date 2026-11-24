@@ -71,18 +71,16 @@ import kotlinx.coroutines.withContext
 /** Bottom sheet states of the password-reset flow. */
 private enum class ForgotSheet { ACCOUNT_NOT_FOUND, INVALID_TOKEN, PASSWORD_MISMATCH, WEAK_PASSWORD, SUCCESS }
 
-/**
- * 3-step password recovery (demo): email → 6-digit code → new password.
- * The code is displayed on screen because there is no backend to send e-mail.
- */
+/** Requests a code, verifies it and lets the user set a new password. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ForgotPasswordScreen(
     onBackToLogin: () -> Unit,
     modifier: Modifier = Modifier,
+    initialEmail: String = "",
 ) {
     var step by rememberSaveable { mutableStateOf(1) }
-    val email = rememberTextFieldState()
+    val email = rememberTextFieldState(initialText = initialEmail)
     // Codes and passwords stay in temporary UI state, outside saved instance state.
     val token = remember { TextFieldState() }
     val newPassword = remember { TextFieldState() }
@@ -95,6 +93,25 @@ fun ForgotPasswordScreen(
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val backToLogin = { focusManager.clearFocus(); onBackToLogin() }
+
+    suspend fun requestCode() {
+        if (pending) return
+        val recipient = email.text.toString().trim()
+        pending = true
+        val result = try {
+            withContext(Dispatchers.IO) { AuthRepository.request_password_reset(recipient) }
+        } finally {
+            pending = false
+        }
+        when (result) {
+            is ResetResult.CodeSent -> {
+                sentToken = result.token.orEmpty()
+                token.edit { replace(0, length, "") }
+                step = 2
+            }
+            else -> sheet = ForgotSheet.ACCOUNT_NOT_FOUND
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -173,6 +190,7 @@ fun ForgotPasswordScreen(
                 when (step) {
                     1 -> OutlinedTextField(
                         state = email,
+                        enabled = !pending,
                         labelPosition = TextFieldLabelPosition.Attached(alwaysMinimize = true),
                         label = { Text(stringResource(R.string.login_email)) },
                         placeholder = { Text(stringResource(R.string.login_email_placeholder)) },
@@ -222,24 +240,11 @@ fun ForgotPasswordScreen(
                         ) {
                             TextButton(
                                 onClick = {
-                                    if (!pending) scope.launch {
-                                        pending = true
-                                        val result = withContext(Dispatchers.IO) {
-                                            AuthRepository.request_password_reset(email.text.toString())
-                                        }
-                                        pending = false
-                                        when (result) {
-                                            is ResetResult.CodeSent -> {
-                                                sentToken = result.token.orEmpty()
-                                                token.edit { replace(0, length, "") }
-                                            }
-                                            else -> sheet = ForgotSheet.ACCOUNT_NOT_FOUND
-                                        }
-                                    }
+                                    scope.launch { requestCode() }
                                 },
                                 enabled = !pending,
                             ) { Text(stringResource(R.string.forgot_resend)) }
-                            TextButton(onClick = { step = 1 }) {
+                            TextButton(onClick = { step = 1 }, enabled = !pending) {
                                 Text(stringResource(R.string.forgot_change_email))
                             }
                         }
@@ -302,21 +307,7 @@ fun ForgotPasswordScreen(
                     1 -> Button(
                         onClick = {
                             focusManager.clearFocus()
-                            if (!pending) scope.launch {
-                                pending = true
-                                val result = withContext(Dispatchers.IO) {
-                                    AuthRepository.request_password_reset(email.text.toString())
-                                }
-                                pending = false
-                                when (result) {
-                                    is ResetResult.CodeSent -> {
-                                        sentToken = result.token.orEmpty()
-                                        token.edit { replace(0, length, "") }
-                                        step = 2
-                                    }
-                                    else -> sheet = ForgotSheet.ACCOUNT_NOT_FOUND
-                                }
-                            }
+                            scope.launch { requestCode() }
                         },
                         enabled = !pending,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),

@@ -56,6 +56,7 @@ fun SpotGoApp() {
     val notificationPermissionRequest = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { }
+    var recoveryEmail by rememberSaveable { mutableStateOf("") }
     var destination by rememberSaveable { mutableStateOf(AppDestination.RESTORING) }
     var sessionExpiredSheet by remember { mutableStateOf(false) }
     val backToLogin = {
@@ -115,7 +116,10 @@ fun SpotGoApp() {
             AppDestination.LOGIN -> LoginScreen(
                 onOpenDriver = enterDriver,
                 onCreateAccount = { destination = AppDestination.REGISTER },
-                onForgotPassword = { destination = AppDestination.FORGOT_PASSWORD },
+                onForgotPassword = { email ->
+                    recoveryEmail = email
+                    destination = AppDestination.FORGOT_PASSWORD
+                },
                 onCompleteProfile = { destination = AppDestination.COMPLETE_PROFILE },
             )
             AppDestination.REGISTER -> RegisterScreen(
@@ -123,6 +127,7 @@ fun SpotGoApp() {
                 onRegistered = enterDriver,
             )
             AppDestination.FORGOT_PASSWORD -> ForgotPasswordScreen(
+                initialEmail = recoveryEmail,
                 onBackToLogin = { destination = AppDestination.LOGIN },
             )
             AppDestination.COMPLETE_PROFILE -> CompleteProfileScreen(
