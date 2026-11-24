@@ -28,7 +28,7 @@ object SpotGoApi {
     @Volatile private var refreshToken: String? = null
     @Volatile private var refreshExpiresAt: String? = null
     @Volatile private var persistTokens = false
-    private var tokenStore: EncryptedTokenStore? = null
+    private var tokenStore: EncryptedPreferences? = null
 
     val base_url: String
         get() {
@@ -58,7 +58,7 @@ object SpotGoApi {
     fun initialize(context: Context) {
         synchronized(tokenLock) {
             if (tokenStore != null) return
-            tokenStore = EncryptedTokenStore(context.applicationContext)
+            tokenStore = EncryptedPreferences(context.applicationContext)
             accessToken = tokenStore?.read(ACCESS_KEY)
             refreshToken = tokenStore?.read(REFRESH_KEY)
             refreshExpiresAt = tokenStore?.read(REFRESH_EXPIRY_KEY)
@@ -244,10 +244,13 @@ object SpotGoApi {
     )
 }
 
-/** AES/GCM token storage backed by Android Keystore, with ciphertext in app-private preferences. */
-private class EncryptedTokenStore(context: Context) {
-    private val preferences = context.getSharedPreferences("spotgo_session", Context.MODE_PRIVATE)
-    private val alias = "spotgo.session.tokens.v1"
+/** AES/GCM storage backed by Android Keystore and app-private preferences. */
+internal class EncryptedPreferences(
+    context: Context,
+    preferencesName: String = "spotgo_session",
+    private val alias: String = "spotgo.session.tokens.v1",
+) {
+    private val preferences = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
 
     fun write(name: String, value: String) {
         runCatching {

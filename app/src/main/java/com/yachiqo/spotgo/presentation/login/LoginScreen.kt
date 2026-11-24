@@ -73,7 +73,10 @@ import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.common.StateBottomSheet
 import com.yachiqo.spotgo.ui.theme.SpotGoSupportingText
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
+import com.yachiqo.spotgo.data.remote.EncryptedPreferences
+
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
@@ -88,10 +91,17 @@ fun LoginScreen(
     onCompleteProfile: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val email = rememberTextFieldState()
-    // Password is temporary UI state and is never persisted in saved instance state.
-    val password = remember { TextFieldState() }
-    var keepSignedIn by rememberSaveable { mutableStateOf(true) }
+    val context = LocalContext.current
+    val credentialStore = remember(context) {
+        EncryptedPreferences(context.applicationContext, "spotgo_remembered_login", "spotgo.login.v1")
+    }
+    val savedLogin = remember(credentialStore) {
+        credentialStore.read("login")?.let { runCatching { JSONObject(it) }.getOrNull() }
+    }
+    val email = rememberTextFieldState(initialText = savedLogin?.optString("email").orEmpty())
+    // Keep the visible password out of Android's saved instance state.
+    val password = remember { TextFieldState(initialText = savedLogin?.optString("password").orEmpty()) }
+    var keepSignedIn by rememberSaveable { mutableStateOf(savedLogin?.optBoolean("remember", true) ?: true) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var authError by remember { mutableStateOf<AuthError?>(null) }
     var googleSheetVisible by remember { mutableStateOf(false) }
@@ -99,7 +109,6 @@ fun LoginScreen(
     var googleSigningIn by remember { mutableStateOf(false) }
     var signingIn by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
-    val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val googleDemoMessage = stringResource(R.string.google_demo_unavailable, AuthRepository.GOOGLE_DEMO_EMAIL)
@@ -201,7 +210,13 @@ fun LoginScreen(
                             modifier = Modifier.heightIn(min = 48.dp).toggleable(
                                 value = keepSignedIn,
                                 role = Role.Checkbox,
-                                onValueChange = { keepSignedIn = it },
+                                onValueChange = { checked ->
+                                    keepSignedIn = checked
+                                    if (!checked) {
+                                        credentialStore.clear()
+                                        credentialStore.write("login", """{"remember":false}""")
+                                    }
+                                },
                             ),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -217,13 +232,16 @@ fun LoginScreen(
                         onClick = {
                             focusManager.clearFocus()
                             if (!signingIn) scope.launch {
+                                val submittedEmail = email.text.toString()
+                                val submittedPassword = password.text.toString()
+                                val rememberLogin = keepSignedIn
                                 signingIn = true
                                 val result = try {
                                     withContext(Dispatchers.IO) {
                                         AuthRepository.sign_in(
-                                            email = email.text.toString(),
-                                            password = password.text.toString(),
-                                            keep_signed_in = keepSignedIn,
+                                            email = submittedEmail,
+                                            password = submittedPassword,
+                                            keep_signed_in = rememberLogin,
                                         )
                                     }
                                 } catch (cancelled: CancellationException) {
@@ -234,7 +252,16 @@ fun LoginScreen(
                                     signingIn = false
                                 }
                                 when (result) {
-                                    is AuthResult.Success -> onOpenDriver()
+                                    is AuthResult.Success -> {
+                                        if (rememberLogin && keepSignedIn) {
+                                            credentialStore.write(
+                                                "login",
+                                                JSONObject().put("email", submittedEmail.trim())
+                                                    .put("password", submittedPassword).toString(),
+                                            )
+                                        }
+                                        onOpenDriver()
+                                    }
                                     is AuthResult.Failure -> if (result.error == AuthError.PROFILE_REQUIRED) {
                                         onCompleteProfile()
                                     } else if (result.error == AuthError.API_ERROR) {
