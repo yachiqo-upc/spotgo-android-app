@@ -5,9 +5,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -340,7 +340,17 @@ private fun ZoneCard(zone: ParkingZone, available: Int, onOpenZone: (String) -> 
                 Text(money(zone.hourly_price), color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.titleSmall)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            // The badge labels are much longer in Spanish ("No hay espacios
+            // disponibles" · "Techado" · "Vehículo eléctrico"): a plain Row gives
+            // every later badge only the space left over, which squeezes the pill
+            // until its text wraps character by character. Wrapping keeps each
+            // badge at its natural width and moves the overflow to a new line.
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
                 StatusBadge(
                     if (available > 0) stringResource(R.string.explore_spots, available)
                     else stringResource(R.string.explore_no_spots),
@@ -348,7 +358,6 @@ private fun ZoneCard(zone: ParkingZone, available: Int, onOpenZone: (String) -> 
                 )
                 if (zone.amenities.contains("COVERED")) StatusBadge(stringResource(R.string.driver_covered))
                 if (zone.amenities.contains("EV")) StatusBadge(stringResource(R.string.driver_ev))
-                Spacer(Modifier.weight(1f))
             }
             Button(
                 onClick = { onOpenZone(zone.zone_id) },
