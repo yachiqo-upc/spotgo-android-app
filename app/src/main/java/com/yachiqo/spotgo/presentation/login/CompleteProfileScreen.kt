@@ -45,8 +45,11 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompleteProfileScreen(onCompleted: () -> Unit, onCancel: () -> Unit) {
-    val firstName = rememberTextFieldState()
-    val lastName = rememberTextFieldState()
+    // The first Google sign-in has no profile yet: prefill the names Google
+    // sent and ask only for the phone (the backend requires all three).
+    val googleNames = remember { AuthRepository.take_pending_profile_names() }
+    val firstName = rememberTextFieldState(googleNames?.first.orEmpty())
+    val lastName = rememberTextFieldState(googleNames?.second.orEmpty())
     val phone = rememberTextFieldState()
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<AuthError?>(null) }

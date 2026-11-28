@@ -113,6 +113,7 @@ fun DriverLayout(
                 },
                 onMyVehicles = { flow = DriverFlow.VEHICLES },
                 onOpenBalance = { flow = DriverFlow.PAYMENT_BALANCE },
+                onOpenPayments = { destination = DriverDestination.PAYMENTS; flow = DriverFlow.MAIN },
                 onUnavailableAction = unavailableAction,
             )
             else if (flow == DriverFlow.CONFIRMED) ReservationConfirmedScreen(
@@ -136,6 +137,7 @@ fun DriverLayout(
             )
             else if (flow == DriverFlow.PLANS) PlansScreen(
                 onBack = { flow = DriverFlow.MAIN },
+                onOpenPayments = { destination = DriverDestination.PAYMENTS; flow = DriverFlow.MAIN },
                 onNotice = notice,
             )
             else if (flow == DriverFlow.PERSONAL_INFORMATION) PersonalInformationScreen(
@@ -156,6 +158,7 @@ fun DriverLayout(
                 onEdit = { flow = DriverFlow.RESERVATION_EDIT },
                 onNotice = notice,
                 onUnavailableAction = unavailableAction,
+                onOpenPayments = { destination = DriverDestination.PAYMENTS; flow = DriverFlow.MAIN },
                 onOpenReservation = { reservationId = it; flow = DriverFlow.RESERVATION_DETAILS },
             )
             else if (flow == DriverFlow.RESERVATION_EDIT) EditReservationScreen(

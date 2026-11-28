@@ -33,5 +33,8 @@
     <string name="zone_create_reservation_error">Could not create the reservation. Check availability, your vehicle, and any outstanding balance.</string>
     <string name="zone_payment_method_unavailable_title">Payment method unavailable</string>
     <string name="zone_payment_method_unavailable_message">There is no payment method on this account. Add a simulated method in Payments before reserving. No real card details or charges are used.</string>
+    <string name="zone_go_to_payments">Go to Payments</string>
+    <string name="zone_payment_method_continue">Continue</string>
     <string name="zone_payment_failed_title">Payment could not be completed</string>
+    <string name="zone_payment_failed_close">Got it</string>
 </resources>

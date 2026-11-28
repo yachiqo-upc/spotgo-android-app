@@ -118,8 +118,14 @@
     <string name="edit_reschedule_failed">Could not reschedule. Make sure the reservation starts in more than five minutes and the selected time is available.</string>
     <string name="edit_processing">Processing…</string>
     <string name="details_status_pending_payment">Payment pending</string>
+    <string name="details_payment_rejected_badge">Payment rejected · Action required</string>
+    <string name="details_payment_rejected_message">Your card was declined. Please retry payment with another payment method.</string>
+    <string name="details_payment_pending_badge">Payment pending · Unpaid</string>
+    <string name="details_payment_pending_message">This reservation is not confirmed until payment is approved.</string>
+    <string name="details_payment_declined_notice">Payment declined by the card issuer. Try another card.</string>
     <string name="details_action_complete_payment">Complete payment</string>
     <string name="details_action_retry_payment">Retry payment</string>
+    <string name="details_retry_payment_amount">Pay %1$s</string>
     <string name="details_action_check_payment">Check payment status</string>
     <string name="details_payment_status">Payment status: %1$s</string>
     <string name="details_download_receipt">Download informational receipt</string>

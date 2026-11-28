@@ -26,4 +26,17 @@
     <string name="plans_payment_status_prefix">Estado del pago:</string>
     <string name="plans_cancel_subscription">Cancelar suscripción</string>
     <string name="plans_cancelled">SpotGo canceló la suscripción.</string>
+    <string name="plans_confirm_subscription_title">Confirmar suscripción</string>
+    <string name="plans_confirm_subscription_summary">Plan: %1$s\nPrecio: %2$s / %3$s</string>
+    <string name="plans_confirm_card_label">Método de pago</string>
+    <string name="plans_confirm_subscription">Confirmar suscripción</string>
+    <string name="plans_cancel">Cancelar</string>
+    <string name="plans_payment_method_required_title">Se requiere un método de pago</string>
+    <string name="plans_payment_method_required_message">Agrega un método de pago activo en Pagos antes de suscribirte.</string>
+    <string name="plans_go_to_payments">Ir a Pagos</string>
+    <string name="plans_cancel_confirmation_title">¿Cancelar el plan %1$s?</string>
+    <string name="plans_cancel_confirmation_message">El plan dejará de renovarse. Conservarás los beneficios hasta el %1$s.</string>
+    <string name="plans_cancel_confirmation_message_no_date">El plan dejará de renovarse. Conservarás los beneficios actuales hasta el final del periodo de facturación.</string>
+    <string name="plans_confirm_cancellation">Confirmar cancelación</string>
+    <string name="plans_keep_plan">Mantener plan</string>
 </resources>

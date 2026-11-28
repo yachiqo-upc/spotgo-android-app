@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +23,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -30,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.data.model.ParkingSpot
+import com.yachiqo.spotgo.data.repository.RemotePaymentMethod
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.driver.components.DriverOutlineButton
 import com.yachiqo.spotgo.ui.theme.SpotGoAccent
@@ -326,6 +332,188 @@ internal fun ReviewPaySheet(
                 DriverOutlineButton(stringResource(R.string.reserve_change_payment_method), onChangePaymentMethod)
                 DriverOutlineButton(stringResource(R.string.extend_back), onDismissRequest)
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PaymentMethodsLoadingSheet(onDismissRequest: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        containerColor = SpotGoSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = SpotGoAccent)
+            androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
+            Text(stringResource(R.string.payments_loading), style = MaterialTheme.typography.bodyMedium, color = SpotGoText)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PaymentMethodSheet(
+    methods: List<RemotePaymentMethod>,
+    selectedTokenId: String,
+    onContinue: (String) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    var pendingSelectedTokenId by remember(selectedTokenId, methods) {
+        mutableStateOf(selectedTokenId)
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        containerColor = SpotGoSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp)
+                .padding(top = 8.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                stringResource(R.string.reserve_change_payment_method),
+                style = MaterialTheme.typography.titleLarge,
+                color = SpotGoText,
+            )
+            methods.forEach { method ->
+                val isSelected = method.tokenId == pendingSelectedTokenId
+                Surface(
+                    onClick = { pendingSelectedTokenId = method.tokenId },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else SpotGoSurface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isSelected) SpotGoAccent else MaterialTheme.colorScheme.outline,
+                    ),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(method.label, style = MaterialTheme.typography.bodyLarge, color = SpotGoText,
+                            modifier = Modifier.weight(1f))
+                        if (isSelected) {
+                            Icon(
+                                painterResource(R.drawable.ic_check),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = SpotGoAccent,
+                            )
+                        }
+                    }
+                }
+            }
+            Button(
+                onClick = { onContinue(pendingSelectedTokenId) },
+                enabled = pendingSelectedTokenId.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SpotGoAccent,
+                    contentColor = SpotGoOnAccent,
+                ),
+            ) {
+                Text(
+                    stringResource(R.string.zone_payment_method_continue),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            DriverOutlineButton(
+                label = stringResource(R.string.state_action_close),
+                onClick = onDismissRequest,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun RetryPaymentMethodSheet(
+    methods: List<RemotePaymentMethod>,
+    selectedTokenId: String,
+    amountLabel: String,
+    paying: Boolean,
+    onSelect: (String) -> Unit,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = { if (!paying) onDismiss() },
+        containerColor = SpotGoSurface,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(top = 8.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                stringResource(R.string.details_action_retry_payment),
+                style = MaterialTheme.typography.titleLarge,
+                color = SpotGoText,
+            )
+            methods.forEach { method ->
+                val isSelected = method.tokenId == selectedTokenId
+                Surface(
+                    onClick = { if (!paying) onSelect(method.tokenId) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else SpotGoSurface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isSelected) SpotGoAccent else MaterialTheme.colorScheme.outline,
+                    ),
+                ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                        Text(
+                            method.label,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = SpotGoText,
+                        )
+                        if (isSelected) {
+                            Icon(
+                                painterResource(R.drawable.ic_check),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = SpotGoAccent,
+                            )
+                        }
+                    }
+                }
+            }
+            Button(
+                onClick = { onConfirm(selectedTokenId) },
+                enabled = !paying && selectedTokenId.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = SpotGoAccent, contentColor = SpotGoOnAccent),
+            ) {
+                if (paying) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text(stringResource(R.string.details_retry_payment_amount, amountLabel),
+                    style = MaterialTheme.typography.bodyLarge)
+            }
+            DriverOutlineButton(
+                label = stringResource(R.string.state_action_close),
+                onClick = onDismiss,
+                enabled = !paying,
+            )
         }
     }
 }

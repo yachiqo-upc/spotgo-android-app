@@ -25,4 +25,17 @@
     <string name="plans_payment_status_prefix">Payment status:</string>
     <string name="plans_cancel_subscription">Cancel subscription</string>
     <string name="plans_cancelled">Subscription cancelled by SpotGo.</string>
+    <string name="plans_confirm_subscription_title">Confirm subscription</string>
+    <string name="plans_confirm_subscription_summary">Plan: %1$s\nPrice: %2$s / %3$s</string>
+    <string name="plans_confirm_card_label">Payment method</string>
+    <string name="plans_confirm_subscription">Confirm subscription</string>
+    <string name="plans_cancel">Cancel</string>
+    <string name="plans_payment_method_required_title">Payment method required</string>
+    <string name="plans_payment_method_required_message">Add an active payment method in Payments before subscribing.</string>
+    <string name="plans_go_to_payments">Go to Payments</string>
+    <string name="plans_cancel_confirmation_title">Cancel %1$s plan?</string>
+    <string name="plans_cancel_confirmation_message">Your plan will stop renewing. You will keep its benefits until %1$s.</string>
+    <string name="plans_cancel_confirmation_message_no_date">Your plan will stop renewing. Your current benefits remain until the end of the billing period.</string>
+    <string name="plans_confirm_cancellation">Confirm cancellation</string>
+    <string name="plans_keep_plan">Keep plan</string>
 </resources>

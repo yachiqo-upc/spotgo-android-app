@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,6 +56,7 @@ import com.yachiqo.spotgo.data.repository.money
 import com.yachiqo.spotgo.data.repository.moneyCompact
 import com.yachiqo.spotgo.data.repository.parseTimestamp
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
+import com.yachiqo.spotgo.presentation.common.StateBottomSheet
 import com.yachiqo.spotgo.presentation.driver.components.*
 import com.yachiqo.spotgo.ui.theme.SpotGoAccent
 import com.yachiqo.spotgo.ui.theme.SpotGoError
@@ -170,10 +172,11 @@ fun ReservationDetailsScreen(
     onEdit: () -> Unit,
     onNotice: (String) -> Unit,
     onUnavailableAction: () -> Unit,
+    onOpenPayments: () -> Unit = onUnavailableAction,
     onOpenReservation: (String) -> Unit = {},
 ) {
     if (SpotGoApi.is_configured()) {
-        RemoteReservationDetailsScreen(reservationId, onBack, onEdit, onNotice, onOpenReservation)
+        RemoteReservationDetailsScreen(reservationId, onBack, onEdit, onNotice, onOpenPayments, onOpenReservation)
         return
     }
     val context = LocalContext.current
@@ -521,6 +524,7 @@ private fun RemoteReservationDetailsScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onNotice: (String) -> Unit,
+    onOpenPayments: () -> Unit,
     onOpenReservation: (String) -> Unit,
 ) {
     var reservation by remember(reservationId) { mutableStateOf<Reservation?>(null) }
@@ -533,6 +537,10 @@ private fun RemoteReservationDetailsScreen(
     var paymentStatus by remember(reservationId) { mutableStateOf<String?>(null) }
     var paymentMethods by remember(reservationId) { mutableStateOf(emptyList<RemotePaymentMethod>()) }
     var selectedTokenId by rememberSaveable(reservationId) { mutableStateOf("") }
+    var lastAttemptedTokenId by rememberSaveable(reservationId) { mutableStateOf("") }
+    var selectingRetryMethod by remember { mutableStateOf(false) }
+    var showRetryPaymentSheet by remember { mutableStateOf(false) }
+    var showPaymentMethodUnavailable by remember { mutableStateOf(false) }
     var linkedRootReservationId by remember(reservationId) { mutableStateOf("") }
     var linkedSegments by remember(reservationId) { mutableStateOf(emptyList<Reservation>()) }
     var receiptBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -565,7 +573,7 @@ private fun RemoteReservationDetailsScreen(
             val loaded = RemoteReservationRepository.loadReservation(reservationId)
             val allReservations = RemoteReservationRepository.loadReservations()
             val payment = (loaded as? RemoteReservationResult.Success)?.reservation?.payment_ref
-                ?.let { RemoteBillingRepository.payment(it) }
+                ?.let { RemoteBillingRepository.paymentDetails(it) }
             Triple(loaded, RemoteBillingRepository.loadPaymentMethods(), payment) to allReservations
         }
         val (result, methods, payment) = loadedData
@@ -573,7 +581,8 @@ private fun RemoteReservationDetailsScreen(
             is RemoteReservationResult.Success -> {
                 reservation = result.reservation
                 loadFailed = false
-                paymentStatus = (payment as? RemotePaymentResult.Success)?.status
+                paymentStatus = payment?.status
+                payment?.tokenId?.takeIf(String::isNotBlank)?.let { lastAttemptedTokenId = it }
                 val rows = (reservationRows as? ReservationListResult.Success)?.reservations.orEmpty()
                 val chain = reservationExtensionChain(result.reservation, rows)
                 linkedRootReservationId = chain.first
@@ -582,7 +591,8 @@ private fun RemoteReservationDetailsScreen(
             RemoteReservationResult.Failure -> loadFailed = true
         }
         paymentMethods = (methods as? RemotePaymentMethodsResult.Success)?.methods.orEmpty()
-        selectedTokenId = paymentMethods.firstOrNull { it.isDefault }?.tokenId
+        selectedTokenId = paymentMethods.firstOrNull { it.tokenId == lastAttemptedTokenId }?.tokenId
+            ?: paymentMethods.firstOrNull { it.isDefault }?.tokenId
             ?: paymentMethods.firstOrNull()?.tokenId.orEmpty()
         loading = false
     }
@@ -620,14 +630,41 @@ private fun RemoteReservationDetailsScreen(
                     ReservationStatus.CANCELLED, ReservationStatus.PAYMENT_REJECTED -> R.string.details_status_cancelled
                     else -> R.string.details_status_confirmed
                 }
-                val statusLabel = if (current.status == ReservationStatus.PENDING_PAYMENT) stringResource(R.string.details_status_pending_payment)
-                    else stringResource(statusRes)
+                    val normalizedPaymentStatus = paymentStatus?.uppercase()
+                    val paymentApproved = normalizedPaymentStatus == "APPROVED"
+                    val reservationCanBeConfirmed = current.status in setOf(
+                        ReservationStatus.PENDING_PAYMENT,
+                        ReservationStatus.PAYMENT_REJECTED,
+                        ReservationStatus.RESERVED,
+                        ReservationStatus.ACTIVE,
+                    )
+                    val paymentRejected = !paymentApproved &&
+                        (normalizedPaymentStatus in setOf("REJECTED", "DECLINED") ||
+                            current.status == ReservationStatus.PAYMENT_REJECTED)
+                    val paymentAwaitingApproval = !paymentApproved && !paymentRejected &&
+                        current.status !in setOf(
+                            ReservationStatus.CANCELLED,
+                            ReservationStatus.COMPLETED,
+                            ReservationStatus.NO_SHOW,
+                            ReservationStatus.OVERSTAYED,
+                        ) &&
+                        (current.status == ReservationStatus.PENDING_PAYMENT ||
+                            current.status == ReservationStatus.RESERVED ||
+                            current.payment_ref != null)
+                    val statusLabel = when {
+                        paymentRejected -> stringResource(R.string.details_payment_rejected_badge)
+                        paymentAwaitingApproval -> stringResource(R.string.details_payment_pending_badge)
+                        paymentApproved && reservationCanBeConfirmed ->
+                            stringResource(R.string.details_status_confirmed)
+                        current.status == ReservationStatus.PENDING_PAYMENT -> stringResource(R.string.details_status_pending_payment)
+                        else -> stringResource(statusRes)
+                    }
                     val isCancelable = current.status == ReservationStatus.RESERVED &&
                         runCatching { Instant.parse(current.start_at).isAfter(Instant.now()) }.getOrDefault(false)
                     val isEditable = current.status == ReservationStatus.RESERVED &&
                         runCatching { Instant.parse(current.start_at).minusSeconds(300).isAfter(Instant.now()) }.getOrDefault(false)
                     val isActive = current.status == ReservationStatus.ACTIVE
-                    val hasApprovedPayment = paymentStatus == "APPROVED"
+                    val hasApprovedPayment = paymentApproved
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState())
                         .padding(horizontal = 18.dp).padding(top = 10.dp, bottom = 22.dp),
@@ -644,7 +681,23 @@ private fun RemoteReservationDetailsScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(current.reservation_id, style = MaterialTheme.typography.titleMedium)
-                            StatusBadge(statusLabel, positive = isCancelable || current.status == ReservationStatus.ACTIVE)
+                            StatusBadge(
+                                statusLabel,
+                                positive = paymentApproved && reservationCanBeConfirmed,
+                                error = paymentRejected,
+                            )
+                            when {
+                                paymentRejected -> Text(
+                                    stringResource(R.string.details_payment_rejected_message),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                                paymentAwaitingApproval -> Text(
+                                    stringResource(R.string.details_payment_pending_message),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                )
+                            }
                         }
                     }
                     DriverSectionTitle(stringResource(R.string.details_info_title))
@@ -687,28 +740,63 @@ private fun RemoteReservationDetailsScreen(
                             }
                         }
                     }
-                    val paymentNeedsAction = current.status == ReservationStatus.PENDING_PAYMENT &&
+                    val normalizedCurrentPaymentStatus = paymentStatus.orEmpty().uppercase()
+                    val paymentNeedsAction = paymentRejected ||
+                        (current.status == ReservationStatus.PENDING_PAYMENT &&
+                        normalizedCurrentPaymentStatus != "APPROVED" &&
                         (current.payment_ref == null || paymentStatus == null ||
-                            paymentStatus in setOf("PENDING", "RECONCILIATION_REQUIRED", "REJECTED"))
+                            normalizedCurrentPaymentStatus in setOf(
+                                "PENDING", "INITIATED", "PROCESSING", "RECONCILIATION_REQUIRED",
+                                "REJECTED", "DECLINED", "UNKNOWN", "FAILED",
+                            )))
                     if (paymentNeedsAction) {
                         DriverPrimaryButton(
                             label = when {
                                 current.payment_ref == null -> stringResource(R.string.details_action_complete_payment)
-                                paymentStatus == "REJECTED" -> stringResource(R.string.details_action_retry_payment)
+                                paymentRejected ->
+                                    stringResource(R.string.details_action_retry_payment)
                                 else -> stringResource(R.string.details_action_check_payment)
                             },
-                            enabled = !busy && (current.payment_ref != null || selectedTokenId.isNotBlank()),
+                            enabled = !busy && !selectingRetryMethod &&
+                                (current.payment_ref != null || selectedTokenId.isNotBlank()),
                             onClick = {
                                 val operation = current.payment_ref
-                                if (operation != null || selectedTokenId.isNotBlank()) scope.launch {
+                                if (operation != null && paymentRejected) {
+                                    selectingRetryMethod = true
+                                    scope.launch {
+                                        val (methods, paymentDetails) = withContext(Dispatchers.IO) {
+                                            val activeMethods = RemoteBillingRepository.loadPaymentMethods()
+                                            val previousPayment = operation?.let {
+                                                RemoteBillingRepository.paymentDetails(it)
+                                            }
+                                            activeMethods to previousPayment
+                                        }
+                                        when (methods) {
+                                            is RemotePaymentMethodsResult.Success -> {
+                                                paymentMethods = methods.methods
+                                                paymentDetails?.tokenId?.takeIf(String::isNotBlank)
+                                                    ?.let { lastAttemptedTokenId = it }
+                                                selectedTokenId = methods.methods.firstOrNull {
+                                                    it.tokenId == lastAttemptedTokenId
+                                                }?.tokenId
+                                                    ?: methods.methods.firstOrNull { it.isDefault }?.tokenId
+                                                    ?: methods.methods.firstOrNull()?.tokenId.orEmpty()
+                                                if (methods.methods.isEmpty()) showPaymentMethodUnavailable = true
+                                                else showRetryPaymentSheet = true
+                                            }
+                                            RemotePaymentMethodsResult.Failure -> onNotice(cancelFailure)
+                                        }
+                                        selectingRetryMethod = false
+                                    }
+                                } else if (operation != null || selectedTokenId.isNotBlank()) scope.launch {
                                     busy = true
                                     val result = withContext(Dispatchers.IO) {
                                         when {
                                             operation == null -> RemoteBillingRepository.payReservation(reservationId, selectedTokenId)
-                                            paymentStatus == "REJECTED" -> RemoteBillingRepository.retry(operation, selectedTokenId)
                                             else -> RemoteBillingRepository.reconcile(operation)
                                         }
                                     }
+                                    val resolvedResult = RemoteBillingRepository.awaitPaymentResolution(result)
                                     val refreshed = withContext(Dispatchers.IO) {
                                         val loaded = RemoteReservationRepository.loadReservation(reservationId)
                                         val latestPayment = (loaded as? RemoteReservationResult.Success)?.reservation?.payment_ref
@@ -716,16 +804,32 @@ private fun RemoteReservationDetailsScreen(
                                         loaded to latestPayment
                                     }
                                     busy = false
-                                    if (result is RemotePaymentResult.Success) paymentStatus = result.status
+                                    if (resolvedResult is RemotePaymentResult.Success) paymentStatus = resolvedResult.status
                                     val refreshedReservation = refreshed.first as? RemoteReservationResult.Success
                                     if (refreshedReservation != null) reservation = refreshedReservation.reservation
-                                    (refreshed.second as? RemotePaymentResult.Success)?.let { paymentStatus = it.status }
-                                    onNotice(if (result is RemotePaymentResult.Success) context.getString(R.string.details_payment_status, context.getString(com.yachiqo.spotgo.presentation.paymentStatusResource(result.status))) else cancelFailure)
+                                    val refreshedPayment = refreshed.second as? RemotePaymentResult.Success
+                                    refreshedPayment?.let {
+                                        if (it.status.equals("APPROVED", ignoreCase = true) ||
+                                            paymentStatus?.equals("APPROVED", ignoreCase = true) != true
+                                        ) paymentStatus = it.status
+                                    }
+                                    val finalPaymentStatus = refreshedPayment?.status
+                                        ?: (resolvedResult as? RemotePaymentResult.Success)?.status
+                                    onNotice(
+                                        when (finalPaymentStatus?.uppercase()) {
+                                            "REJECTED", "DECLINED" -> context.getString(R.string.details_payment_declined_notice)
+                                            null -> cancelFailure
+                                            else -> context.getString(
+                                                R.string.details_payment_status,
+                                                context.getString(com.yachiqo.spotgo.presentation.paymentStatusResource(finalPaymentStatus)),
+                                            )
+                                        },
+                                    )
                                 }
                             },
                         )
                     }
-                    if (isEditable && current.parent_reservation_id == null) {
+                    if (isEditable && hasApprovedPayment && current.parent_reservation_id == null) {
                         DriverOutlineButton(stringResource(R.string.details_edit), onClick = onEdit)
                     }
                     ReservationProblemReport(reservationId)
@@ -782,6 +886,72 @@ private fun RemoteReservationDetailsScreen(
     }
 
     val currentForExtension = reservation
+    if (showRetryPaymentSheet && !paymentMethods.isEmpty()) {
+        RetryPaymentMethodSheet(
+            methods = paymentMethods,
+            selectedTokenId = selectedTokenId,
+            amountLabel = money(reservation?.amount ?: 0.0),
+            paying = busy,
+            onSelect = { selectedTokenId = it },
+            onConfirm = { chosenTokenId ->
+                val paymentId = reservation?.payment_ref
+                if (!paymentId.isNullOrBlank() && chosenTokenId.isNotBlank() && !busy) scope.launch {
+                    busy = true
+                    val initial = withContext(Dispatchers.IO) {
+                        RemoteBillingRepository.retryReservationPayment(paymentId, chosenTokenId)
+                    }
+                    val result = RemoteBillingRepository.awaitPaymentResolution(initial)
+                    val refreshed = withContext(Dispatchers.IO) {
+                        val loaded = RemoteReservationRepository.loadReservation(reservationId)
+                        val latestPayment = RemoteBillingRepository.payment(paymentId)
+                        loaded to latestPayment
+                    }
+                    busy = false
+                    showRetryPaymentSheet = false
+                    val updated = refreshed.first as? RemoteReservationResult.Success
+                    if (updated != null) reservation = updated.reservation
+                    val latest = refreshed.second as? RemotePaymentResult.Success
+                    val resultStatus = (result as? RemotePaymentResult.Success)?.status
+                    lastAttemptedTokenId = chosenTokenId
+                    val latestStatus = latest?.status
+                    paymentStatus = when {
+                        latestStatus.equals("APPROVED", ignoreCase = true) -> latestStatus
+                        resultStatus.equals("APPROVED", ignoreCase = true) -> resultStatus
+                        resultStatus?.uppercase() in setOf("REJECTED", "DECLINED", "CANCELLED") -> resultStatus
+                        latestStatus != null -> latestStatus
+                        else -> resultStatus
+                    }
+                    when (paymentStatus?.uppercase()) {
+                        "REJECTED", "DECLINED" -> onNotice(context.getString(R.string.details_payment_declined_notice))
+                        null -> onNotice(cancelFailure)
+                        else -> onNotice(
+                            context.getString(
+                                R.string.details_payment_status,
+                                context.getString(com.yachiqo.spotgo.presentation.paymentStatusResource(paymentStatus!!)),
+                            ),
+                        )
+                    }
+                }
+            },
+            onDismiss = { if (!busy) showRetryPaymentSheet = false },
+        )
+    }
+
+    if (showPaymentMethodUnavailable) {
+        StateBottomSheet(
+            title = stringResource(R.string.zone_payment_method_unavailable_title),
+            message = stringResource(R.string.zone_payment_method_unavailable_message),
+            primaryText = stringResource(R.string.zone_go_to_payments),
+            onPrimary = {
+                showPaymentMethodUnavailable = false
+                onOpenPayments()
+            },
+            secondaryText = stringResource(R.string.state_action_close),
+            onSecondary = { showPaymentMethodUnavailable = false },
+            onDismissRequest = { showPaymentMethodUnavailable = false },
+        )
+    }
+
     if (confirmingExtension && currentForExtension != null) {
         ReservationExtensionDialog(
             reservation = currentForExtension,

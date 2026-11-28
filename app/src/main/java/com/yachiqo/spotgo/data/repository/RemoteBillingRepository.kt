@@ -120,8 +120,7 @@ sealed interface RemotePaymentResult {
 object RemoteBillingRepository {
 
     private val finalPaymentStatuses = setOf("APPROVED", "REJECTED", "CANCELLED")
-    private const val PAYMENT_STATUS_POLL_INTERVAL_MS = 300L
-    private const val PAYMENT_STATUS_POLL_ATTEMPTS = 20
+    private const val PAYMENT_STATUS_POLL_INTERVAL_MS = 1_000L
 
     fun loadPaymentMethods(): RemotePaymentMethodsResult {
         val rows = getArray("/api/v1/payment-tokens") ?: return RemotePaymentMethodsResult.Failure
@@ -134,11 +133,16 @@ object RemoteBillingRepository {
         })
     }
 
-    fun addSimulatedPaymentMethod(brand: String, lastFour: String): RemotePaymentMethodMutationResult {
-        val normalizedBrand = brand.lowercase().takeIf { it in SIMULATED_CARD_BRANDS }
-            ?: return RemotePaymentMethodMutationResult.Failure
-        if (!lastFour.matches(Regex("[0-9]{4}"))) return RemotePaymentMethodMutationResult.Failure
-        val body = JSONObject().put("providerTokenRef", "simulated-$normalizedBrand-$lastFour").toString()
+    /**
+     * Saves the test token the card form produced: only the provider
+     * reference travels (`simulated-<brand>-<last four>`), never the card
+     * number, holder, expiry or CVV.
+     */
+    fun addPaymentToken(providerTokenRef: String): RemotePaymentMethodMutationResult {
+        if (!SIMULATED_PROVIDER_REF.matches(providerTokenRef)) {
+            return RemotePaymentMethodMutationResult.Failure
+        }
+        val body = JSONObject().put("providerTokenRef", providerTokenRef).toString()
         return when (val response = SpotGoApi.post("/api/v1/payment-tokens", body)) {
             is ApiResult.Success -> if (response.status in 200..299) {
                 runCatching { parsePaymentMethod(JSONObject(response.body)) }
@@ -147,6 +151,14 @@ object RemoteBillingRepository {
             } else RemotePaymentMethodMutationResult.Failure
             ApiResult.NotConfigured, is ApiResult.Failure -> RemotePaymentMethodMutationResult.Failure
         }
+    }
+
+    /** Convenience overload that builds the reference from brand + last four. */
+    fun addSimulatedPaymentMethod(brand: String, lastFour: String): RemotePaymentMethodMutationResult {
+        val normalizedBrand = brand.lowercase().takeIf { it in SIMULATED_CARD_BRANDS }
+            ?: return RemotePaymentMethodMutationResult.Failure
+        if (!lastFour.matches(Regex("[0-9]{4}"))) return RemotePaymentMethodMutationResult.Failure
+        return addPaymentToken("simulated-$normalizedBrand-$lastFour")
     }
 
     fun setDefaultPaymentMethod(tokenId: String): Boolean {
@@ -237,6 +249,9 @@ object RemoteBillingRepository {
             "reservation-$reservationId",
         )
 
+    fun retryReservationPayment(paymentId: String, tokenId: String): RemotePaymentResult =
+        retry(paymentId, tokenId)
+
     fun payReservationChange(changeId: String, tokenId: String): RemotePaymentResult =
         createAndProcess(
             "/api/v1/digital-payments/reservation-changes/$changeId",
@@ -266,20 +281,19 @@ object RemoteBillingRepository {
         ApiResult.NotConfigured, is ApiResult.Failure -> false
     }
 
+    fun paymentDetails(paymentId: String): RemoteDigitalPayment? = fetchPayment(paymentId)
+
     fun payment(paymentId: String): RemotePaymentResult =
-        fetchPayment(paymentId)?.let { RemotePaymentResult.Success(it.status, it.paymentId) }
+        paymentDetails(paymentId)?.let { RemotePaymentResult.Success(it.status, it.paymentId) }
             ?: RemotePaymentResult.Failure
 
     /** Waits for asynchronous provider reconciliation without blocking the UI thread. */
     suspend fun awaitPaymentResolution(initial: RemotePaymentResult): RemotePaymentResult {
         var latest = (initial as? RemotePaymentResult.Success) ?: return initial
-        if (latest.status in finalPaymentStatuses) return latest
-
-        repeat(PAYMENT_STATUS_POLL_ATTEMPTS) {
+        while (latest.status !in finalPaymentStatuses) {
             delay(PAYMENT_STATUS_POLL_INTERVAL_MS)
             val refreshed = withContext(Dispatchers.IO) { payment(latest.paymentId) }
             if (refreshed is RemotePaymentResult.Success) latest = refreshed
-            if (latest.status in finalPaymentStatuses) return latest
         }
         return latest
     }
@@ -290,8 +304,9 @@ object RemoteBillingRepository {
     fun reconcile(paymentId: String): RemotePaymentResult =
         paymentAction("/api/v1/digital-payments/$paymentId/reconcile", "{}", paymentId)
 
-    fun retry(paymentId: String, tokenId: String? = null): RemotePaymentResult {
-        val body = JSONObject().apply { tokenId?.takeIf(String::isNotBlank)?.let { put("tokenId", it) } }.toString()
+    fun retry(paymentId: String, tokenId: String): RemotePaymentResult {
+        if (paymentId.isBlank() || tokenId.isBlank()) return RemotePaymentResult.Failure
+        val body = JSONObject().put("tokenId", tokenId).toString()
         return paymentAction("/api/v1/digital-payments/$paymentId/retry", body, paymentId)
     }
 
@@ -314,14 +329,22 @@ object RemoteBillingRepository {
     private fun paymentAction(path: String, body: String, paymentId: String): RemotePaymentResult = when (
         val response = SpotGoApi.post(path, body)
     ) {
-        is ApiResult.Success -> if (response.status in 200..299) {
-            runCatching { JSONObject(response.body).optString("status") }
-                .getOrNull()?.takeIf(String::isNotBlank)?.let { RemotePaymentResult.Success(it, paymentId) }
-                ?: RemotePaymentResult.Success("UNKNOWN", paymentId)
-        } else if (response.status >= 500) {
-            // The operation exists; retain its id so the caller can reconcile instead of charging again.
-            RemotePaymentResult.Success("UNKNOWN", paymentId)
-        } else RemotePaymentResult.Failure
+        is ApiResult.Success -> {
+            val status = runCatching { JSONObject(response.body).optString("status") }
+                .getOrNull()?.takeIf(String::isNotBlank)
+            when {
+                status.equals("REJECTED", ignoreCase = true) ||
+                    status.equals("DECLINED", ignoreCase = true) ->
+                    RemotePaymentResult.Success("REJECTED", paymentId)
+                response.status in 200..299 ->
+                    RemotePaymentResult.Success(status ?: "UNKNOWN", paymentId)
+                response.status >= 500 -> {
+                    // The operation exists; retain its id so the caller can reconcile instead of charging again.
+                    RemotePaymentResult.Success("UNKNOWN", paymentId)
+                }
+                else -> RemotePaymentResult.Failure
+            }
+        }
         ApiResult.NotConfigured -> RemotePaymentResult.Failure
         is ApiResult.Failure -> RemotePaymentResult.Success("UNKNOWN", paymentId)
     }
@@ -466,4 +489,8 @@ object RemoteBillingRepository {
     }
 
     private val SIMULATED_CARD_BRANDS = setOf("visa", "mastercard", "amex", "discover")
+
+    /** The only reference shape the simulated backend accepts. */
+    private val SIMULATED_PROVIDER_REF =
+        Regex("""^simulated-(visa|mastercard|amex|discover)-[0-9]{4}$""")
 }

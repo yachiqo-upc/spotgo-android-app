@@ -67,12 +67,13 @@ import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.data.repository.AuthError
 import com.yachiqo.spotgo.data.repository.AuthResult
 import com.yachiqo.spotgo.data.repository.AuthRepository
-import com.yachiqo.spotgo.data.remote.SpotGoApi
+import com.yachiqo.spotgo.data.repository.GoogleLinkResult
 import com.yachiqo.spotgo.presentation.common.SpotGoWordmark
 import com.yachiqo.spotgo.presentation.common.FigmaIcon
 import com.yachiqo.spotgo.presentation.common.StateBottomSheet
 import com.yachiqo.spotgo.ui.theme.SpotGoSupportingText
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
+import com.yachiqo.spotgo.ui.theme.SpotGoWarning
 import com.yachiqo.spotgo.data.remote.EncryptedPreferences
 
 import kotlinx.coroutines.launch
@@ -104,16 +105,75 @@ fun LoginScreen(
     var keepSignedIn by rememberSaveable { mutableStateOf(savedLogin?.optBoolean("remember", true) ?: true) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var authError by remember { mutableStateOf<AuthError?>(null) }
-    var googleSheetVisible by remember { mutableStateOf(false) }
     // Pendiente 2 — real Google sign-in runs while the account sheet opens.
     var googleSigningIn by remember { mutableStateOf(false) }
+    // 409: the e-mail signs in with a password, so Google has to be linked later.
+    var googlePasswordGuidance by remember { mutableStateOf(false) }
+    var googleLinkSheet by remember { mutableStateOf(false) }
     var signingIn by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val googleDemoMessage = stringResource(R.string.google_demo_unavailable, AuthRepository.GOOGLE_DEMO_EMAIL)
+    // Without SPOTGO_GOOGLE_WEB_CLIENT_ID the Google button stays disabled.
+    val googleConfigured = GoogleIdentity.isConfigured()
     val googleFailedMessage = stringResource(R.string.google_signin_failed)
+    val googleUnauthorizedMessage = stringResource(R.string.google_unauthorized)
+    val googleBackendMessage = stringResource(R.string.google_backend_not_configured)
+    val googleLinkFailedMessage = stringResource(R.string.google_link_failed)
+    val googleLinkedMessage = stringResource(R.string.google_linked)
     val loginBackendErrorMessage = stringResource(R.string.login_backend_error)
+
+    // One place maps the /authentication/google failures to a message or a sheet.
+    suspend fun handleGoogleFailure(error: AuthError) {
+        when (error) {
+            AuthError.PROFILE_REQUIRED -> onCompleteProfile()
+            AuthError.GOOGLE_ACCOUNT_WITH_PASSWORD -> googlePasswordGuidance = true
+            AuthError.GOOGLE_UNAUTHORIZED -> snackbar.showSnackbar(googleUnauthorizedMessage)
+            AuthError.GOOGLE_NOT_CONFIGURED -> snackbar.showSnackbar(googleBackendMessage)
+            else -> snackbar.showSnackbar(googleFailedMessage)
+        }
+    }
+
+    // Links Google to the account that just signed in with e-mail and password.
+    suspend fun linkGoogleAccount() {
+        when (val result = GoogleIdentity.signIn(context)) {
+            is GoogleSignInResult.Success -> {
+                val linked = withContext(Dispatchers.IO) { AuthRepository.link_google(result.id_token) }
+                when (linked) {
+                    GoogleLinkResult.Success -> {
+                        AuthRepository.clear_google_link_pending()
+                        snackbar.showSnackbar(googleLinkedMessage)
+                        onOpenDriver()
+                    }
+                    GoogleLinkResult.Unauthorized -> {
+                        AuthRepository.clear_google_link_pending()
+                        snackbar.showSnackbar(googleUnauthorizedMessage)
+                        onOpenDriver()
+                    }
+                    GoogleLinkResult.NotConfigured -> {
+                        AuthRepository.clear_google_link_pending()
+                        snackbar.showSnackbar(googleBackendMessage)
+                        onOpenDriver()
+                    }
+                    // Keep the offer: the user can retry from the next sign-in.
+                    GoogleLinkResult.Failure -> {
+                        snackbar.showSnackbar(googleLinkFailedMessage)
+                        onOpenDriver()
+                    }
+                }
+            }
+            // Dismissing the account sheet is not an error: enter the app and retry later.
+            GoogleSignInResult.Cancelled -> onOpenDriver()
+            GoogleSignInResult.NotConfigured -> {
+                AuthRepository.clear_google_link_pending()
+                onOpenDriver()
+            }
+            is GoogleSignInResult.Failed -> {
+                snackbar.showSnackbar(googleLinkFailedMessage)
+                onOpenDriver()
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -260,7 +320,9 @@ fun LoginScreen(
                                                     .put("password", submittedPassword).toString(),
                                             )
                                         }
-                                        onOpenDriver()
+                                        // 409 → sign in with the password first, then offer linking Google.
+                                        if (AuthRepository.google_link_pending()) googleLinkSheet = true
+                                        else onOpenDriver()
                                     }
                                     is AuthResult.Failure -> if (result.error == AuthError.PROFILE_REQUIRED) {
                                         onCompleteProfile()
@@ -301,38 +363,31 @@ fun LoginScreen(
                             focusManager.clearFocus()
                             when {
                                 googleSigningIn -> Unit
+                                // No client id yet: the button is disabled, nothing to run.
+                                !googleConfigured -> Unit
                                 // Pendiente 2 — real Google Identity when the client id exists.
-                                GoogleIdentity.isConfigured() -> {
+                                else -> {
                                     googleSigningIn = true
                                     scope.launch {
                                         when (val result = GoogleIdentity.signIn(context)) {
                                             is GoogleSignInResult.Success -> {
                                                 googleSigningIn = false
-                                                when (
-                                                    val auth = withContext(Dispatchers.IO) {
-                                                        AuthRepository.sign_in_with_google(
-                                                            keep_signed_in = keepSignedIn,
-                                                            email = result.email,
-                                                            display_name = result.display_name,
-                                                            external_subject = GoogleIdentity.subjectOf(result.id_token)
-                                                                .ifBlank { result.id_token },
-                                                            id_token = result.id_token,
-                                                        )
-                                                    }
-                                                ) {
-                                                    is AuthResult.Success -> onOpenDriver()
-                                                    is AuthResult.Failure -> if (auth.error == AuthError.PROFILE_REQUIRED) {
-                                                        onCompleteProfile()
-                                                    } else if (auth.error == AuthError.API_ERROR) {
-                                                        snackbar.showSnackbar(googleFailedMessage)
-                                                    } else authError = auth.error
+                                                val auth = withContext(Dispatchers.IO) {
+                                                    AuthRepository.sign_in_with_google(
+                                                        keep_signed_in = keepSignedIn,
+                                                        email = result.email,
+                                                        display_name = result.display_name,
+                                                        external_subject = GoogleIdentity.subjectOf(result.id_token)
+                                                            .ifBlank { result.id_token },
+                                                        id_token = result.id_token,
+                                                    )
                                                 }
+                                                if (auth is AuthResult.Success) onOpenDriver()
+                                                else if (auth is AuthResult.Failure) handleGoogleFailure(auth.error)
                                             }
+                                            // Cancel is silent: the user can retry or use e-mail + password.
                                             GoogleSignInResult.Cancelled -> googleSigningIn = false
-                                            GoogleSignInResult.NotConfigured -> {
-                                                googleSigningIn = false
-                                                googleSheetVisible = true
-                                            }
+                                            GoogleSignInResult.NotConfigured -> googleSigningIn = false
                                             is GoogleSignInResult.Failed -> {
                                                 googleSigningIn = false
                                                 snackbar.showSnackbar(googleFailedMessage)
@@ -340,11 +395,9 @@ fun LoginScreen(
                                         }
                                     }
                                 }
-                                // No client id yet: simulated chooser of the mockups.
-                                SpotGoApi.is_configured() -> scope.launch { snackbar.showSnackbar(googleFailedMessage) }
-                                else -> googleSheetVisible = true
                             }
                         },
+                        enabled = googleConfigured && !googleSigningIn,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
@@ -353,6 +406,15 @@ fun LoginScreen(
                             stringResource(if (googleSigningIn) R.string.google_connecting else R.string.login_google),
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                    if (!googleConfigured) {
+                        // Clear message while SPOTGO_GOOGLE_WEB_CLIENT_ID is empty;
+                        // e-mail + password sign-in above is unaffected.
+                        Text(
+                            stringResource(R.string.google_unavailable_client_id),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -375,24 +437,41 @@ fun LoginScreen(
         )
     }
 
-    if (googleSheetVisible) {
-        GoogleAccountChooserSheet(
-            accounts = listOf(AuthRepository.GOOGLE_DEMO_EMAIL),
-            onSelectAccount = {
-                googleSheetVisible = false
-                when (val result = AuthRepository.sign_in_with_google(keepSignedIn)) {
-                    is AuthResult.Success -> onOpenDriver()
-                    is AuthResult.Failure -> authError = result.error
-                }
+    // 409 → guide the user to the e-mail + password form of this same screen.
+    if (googlePasswordGuidance) {
+        StateBottomSheet(
+            title = stringResource(R.string.google_account_exists_title),
+            message = stringResource(R.string.google_account_exists_message),
+            tag = stringResource(R.string.google_account_exists_tag),
+            tagColor = SpotGoWarning,
+            primaryText = stringResource(R.string.login_sign_in),
+            onPrimary = { googlePasswordGuidance = false; focusManager.clearFocus() },
+            secondaryText = stringResource(R.string.state_action_close),
+            onSecondary = { googlePasswordGuidance = false },
+            onDismissRequest = { googlePasswordGuidance = false },
+        )
+    }
+
+    // The account was signed in with its password: offer to link Google to it.
+    if (googleLinkSheet) {
+        StateBottomSheet(
+            title = stringResource(R.string.google_link_title),
+            message = stringResource(R.string.google_link_message),
+            tag = stringResource(R.string.google_link_tag),
+            tagColor = SpotGoWarning,
+            primaryText = stringResource(R.string.google_link_action),
+            onPrimary = { googleLinkSheet = false; scope.launch { linkGoogleAccount() } },
+            secondaryText = stringResource(R.string.google_link_later),
+            onSecondary = {
+                AuthRepository.clear_google_link_pending()
+                googleLinkSheet = false
+                onOpenDriver()
             },
-            onUseAnotherAccount = {
-                googleSheetVisible = false
-                scope.launch {
-                    snackbar.currentSnackbarData?.dismiss()
-                    snackbar.showSnackbar(googleDemoMessage)
-                }
+            onDismissRequest = {
+                AuthRepository.clear_google_link_pending()
+                googleLinkSheet = false
+                onOpenDriver()
             },
-            onDismissRequest = { googleSheetVisible = false },
         )
     }
 }

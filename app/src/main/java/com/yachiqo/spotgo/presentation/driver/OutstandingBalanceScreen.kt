@@ -247,8 +247,10 @@ fun OutstandingBalanceScreen(
                     DriverPanel(outlined = method.tokenId != tokenId) {
                         ListItem(
                             headlineContent = { Text(method.label, style = MaterialTheme.typography.titleMedium) },
-                            supportingContent = { Text(stringResource(R.string.payments_expiration,
-                                method.expirationMonth, method.expirationYear), style = MaterialTheme.typography.bodyMedium) },
+                            // Backend tokens carry no real expiry: show only the test-mode label.
+                            supportingContent = { Text(stringResource(R.string.payments_test_mode),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant) },
                             trailingContent = {
                                 if (method.tokenId == tokenId) Icon(painterResource(R.drawable.status_available),
                                     contentDescription = null, Modifier.size(18.dp), tint = SpotGoAccent)

@@ -58,6 +58,20 @@ enum class AuthError {
     INVALID_TOKEN,
     API_ERROR,
     PROFILE_REQUIRED,
+    /** POST /authentication/google → 401: the id token is invalid or not for this app. */
+    GOOGLE_UNAUTHORIZED,
+    /** POST /authentication/google → 409: e-mail already has a password account. */
+    GOOGLE_ACCOUNT_WITH_PASSWORD,
+    /** POST /authentication/google → 503: the backend has no GOOGLE_CLIENT_ID. */
+    GOOGLE_NOT_CONFIGURED,
+}
+
+/** Outcome of POST /authentication/google/link (link Google to a signed-in account). */
+sealed interface GoogleLinkResult {
+    data object Success : GoogleLinkResult
+    data object Unauthorized : GoogleLinkResult
+    data object NotConfigured : GoogleLinkResult
+    data object Failure : GoogleLinkResult
 }
 
 /** Outcome of the password-reset flow (demo: the token never leaves the device). */
@@ -98,6 +112,16 @@ object AuthRepository {
     private var backend_profile: Profile? = null
     private var pending_backend_user: JSONObject? = null
     private var backend_refresh_expires_at: String? = null
+
+    /**
+     * True after the backend answered 409 to /authentication/google: the e-mail
+     * already has a password account, so Google must be linked (with the Bearer
+     * token of a password sign-in) instead of creating a second account.
+     */
+    private var google_link_pending: Boolean = false
+
+    /** "First name · Last name" taken from the Google account of a pending profile. */
+    private var pending_profile_names: Pair<String, String>? = null
 
     /** Pending password-reset token (demo, never persisted). */
     private data class PasswordResetToken(
@@ -337,9 +361,21 @@ object AuthRepository {
             val body = JSONObject().put("idToken", token).toString()
             return when (val result = SpotGoApi.post("/api/v1/authentication/google", body)) {
                 is ApiResult.Success -> when {
-                    result.status in 200..299 -> authenticateBackendUser(JSONObject(result.body), keep_signed_in)
-                    result.status == 409 -> AuthResult.Failure(AuthError.DUPLICATE_EMAIL)
-                    result.status == 401 -> AuthResult.Failure(AuthError.INVALID_CREDENTIALS)
+                    result.status in 200..299 -> {
+                        val auth = authenticateBackendUser(JSONObject(result.body), keep_signed_in)
+                        if (auth.errorOrNull() == AuthError.PROFILE_REQUIRED) {
+                            // The Google account supplies the names; the form only asks for the phone.
+                            pending_profile_names = splitDisplayName(display_name)
+                        }
+                        auth
+                    }
+                    // The e-mail already signs in with a password: ask for it and link Google later.
+                    result.status == 409 -> {
+                        google_link_pending = true
+                        AuthResult.Failure(AuthError.GOOGLE_ACCOUNT_WITH_PASSWORD)
+                    }
+                    result.status == 401 -> AuthResult.Failure(AuthError.GOOGLE_UNAUTHORIZED)
+                    result.status == 503 -> AuthResult.Failure(AuthError.GOOGLE_NOT_CONFIGURED)
                     else -> AuthResult.Failure(AuthError.API_ERROR)
                 }
                 ApiResult.NotConfigured, is ApiResult.Failure -> AuthResult.Failure(AuthError.API_ERROR)
@@ -396,6 +432,49 @@ object AuthRepository {
 
         val ttl = if (keep_signed_in) SESSION_TTL_KEEP_SIGNED_IN_SECONDS else SESSION_TTL_DEFAULT_SECONDS
         return startSession(account, resolvedProfile, ttl)
+    }
+
+    /** True when the backend rejected Google because the e-mail signs in with a password. */
+    fun google_link_pending(): Boolean = google_link_pending
+
+    /** Drops the pending "link Google" offer (dismissed by the user or already used). */
+    fun clear_google_link_pending() {
+        google_link_pending = false
+    }
+
+    /**
+     * Names of the Google account waiting for the required profile form,
+     * consumed once by CompleteProfileScreen (null when Google sent none).
+     */
+    fun take_pending_profile_names(): Pair<String, String>? = pending_profile_names
+        .also { pending_profile_names = null }
+
+    /**
+     * Links the Google account to the session opened with e-mail and password
+     * (POST /authentication/google/link → 204). Only the id token travels:
+     * the Bearer access token of the current session is attached by SpotGoApi.
+     */
+    fun link_google(id_token: String): GoogleLinkResult {
+        if (id_token.isBlank()) return GoogleLinkResult.Failure
+        val body = JSONObject().put("idToken", id_token).toString()
+        return when (val result = SpotGoApi.post("/api/v1/authentication/google/link", body)) {
+            is ApiResult.Success -> when {
+                result.status in 200..299 -> {
+                    google_link_pending = false
+                    GoogleLinkResult.Success
+                }
+                result.status == 401 -> GoogleLinkResult.Unauthorized
+                result.status == 503 -> GoogleLinkResult.NotConfigured
+                else -> GoogleLinkResult.Failure
+            }
+            ApiResult.NotConfigured, is ApiResult.Failure -> GoogleLinkResult.Failure
+        }
+    }
+
+    /** "Ana Torres" → ("Ana", "Torres"); a single word only fills the first name. */
+    private fun splitDisplayName(displayName: String?): Pair<String, String> {
+        val parts = displayName?.trim()?.split(" ", limit = 2).orEmpty()
+        return parts.getOrElse(0) { "" } to parts.getOrElse(1) { "" }
     }
 
     /** Step 1 of the password reset: generates a 6-digit token for the account. */
@@ -494,6 +573,9 @@ object AuthRepository {
 
     /** Revokes the current session (sign out or expired-session cleanup). */
     fun sign_out() {
+        // The pending Google link / profile hints belong to a session that is over.
+        google_link_pending = false
+        pending_profile_names = null
         if (SpotGoApi.is_configured()) {
             FcmDeviceRegistration.signOut(SpotGoApi.current_access_token())
             SpotGoApi.clear_tokens()
@@ -979,3 +1061,5 @@ private fun ApiResult.statusName(): String = when (this) {
     is ApiResult.Failure -> "network failure (${reason})"
     ApiResult.NotConfigured -> "backend not configured"
 }
+
+private fun AuthResult.errorOrNull(): AuthError? = (this as? AuthResult.Failure)?.error

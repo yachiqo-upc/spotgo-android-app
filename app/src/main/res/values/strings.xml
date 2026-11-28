@@ -81,6 +81,19 @@
     <!-- Google Identity (Pendiente 2 — Credential Manager) -->
     <string name="google_connecting">Connecting to Google…</string>
     <string name="google_signin_failed">Google sign-in couldn\'t be completed. Try again.</string>
+    <string name="google_unavailable_client_id">Google sign-in isn\'t configured in this build yet (SPOTGO_GOOGLE_WEB_CLIENT_ID is empty). You can still sign in with your email and password.</string>
+    <string name="google_unauthorized">Google couldn\'t verify this account for SpotGo. Check that you\'re using the account you registered with and try again.</string>
+    <string name="google_backend_not_configured">SpotGo\'s backend can\'t use Google sign-in yet (GOOGLE_CLIENT_ID is not configured). Sign in with your email and password.</string>
+    <string name="google_account_exists_title">Sign in with your email and password</string>
+    <string name="google_account_exists_message">An account already exists with this email and Google is not linked to it. Sign in with your email and password; you can link Google afterwards.</string>
+    <string name="google_account_exists_tag">Google not linked</string>
+    <string name="google_link_title">Link Google to your account</string>
+    <string name="google_link_message">Your account uses its password. Link Google now to sign in faster the next time; you can also do it later.</string>
+    <string name="google_link_tag">Link Google</string>
+    <string name="google_link_action">Link Google</string>
+    <string name="google_link_later">Not now</string>
+    <string name="google_link_failed">Google couldn\'t be linked. Try again.</string>
+    <string name="google_linked">Google was linked to your account.</string>
     <!-- Forgot password (3-step reset) -->
     <string name="forgot_title">Reset your password</string>
     <string name="forgot_step1_intro">Enter the email registered to your account and we\'ll send you a 6-digit code.</string>

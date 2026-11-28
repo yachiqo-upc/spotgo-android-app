@@ -34,5 +34,8 @@
     <string name="zone_create_reservation_error">No se pudo crear la reserva. Revisa la disponibilidad, tu vehículo y los saldos pendientes.</string>
     <string name="zone_payment_method_unavailable_title">Método de pago no disponible</string>
     <string name="zone_payment_method_unavailable_message">No hay un método de pago registrado en esta cuenta. Agrega un método simulado en Pagos antes de reservar. No se usan datos reales de tarjetas ni se realizan cobros.</string>
+    <string name="zone_go_to_payments">Ir a Pagos</string>
+    <string name="zone_payment_method_continue">Continuar</string>
     <string name="zone_payment_failed_title">No se pudo completar el pago</string>
+    <string name="zone_payment_failed_close">Entendido</string>
 </resources>

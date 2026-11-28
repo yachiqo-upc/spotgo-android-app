@@ -47,6 +47,47 @@ Dependency versions are maintained in `gradle/libs.versions.toml`. Material 3 Ex
 
 The application ID is `com.yachiqo.spotgo`.
 
+## Backend and Google sign-in configuration
+
+The Android client reads `SPOTGO_API_BASE_URL` and `SPOTGO_GOOGLE_WEB_CLIENT_ID` from the process environment first, then from the repository-root `local.properties`; an environment variable takes precedence when both are set. Both values are optional and are exposed to the app through `BuildConfig`. `local.properties` is ignored by Git; do not put real configuration values in tracked files.
+
+For local development, add these entries to the existing root `local.properties` (keep its `sdk.dir` entry). The client ID below is fictitious:
+
+```properties
+SPOTGO_API_BASE_URL=http://10.0.2.2:8080
+SPOTGO_GOOGLE_WEB_CLIENT_ID=1234567890-example.apps.googleusercontent.com
+```
+
+`10.0.2.2` is the Android Emulator's host-machine address; do not use `localhost` as the backend host from the emulator. Set the API URL to the backend origin, without a Swagger or API path.
+
+Google sign-in uses AndroidX Credential Manager and Google Identity directly. It does not require Firebase, Firebase Auth, the Google Services Gradle plugin, or `google-services.json`. The Web client ID is passed to Google as `serverClientId` to request an ID token for the backend's audience, and the account chooser allows accounts that have not previously authorized the app. If the ID is empty, Google sign-in is disabled with an explanation while email/password sign-in remains available. If the ID is configured but the backend has no `GOOGLE_CLIENT_ID`, the app displays the backend's not-configured (503) message.
+
+To define the client ID as a Windows user environment variable in PowerShell, use a fictitious value as shown here and replace it locally with the Web client ID from Google Cloud:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+  "SPOTGO_GOOGLE_WEB_CLIENT_ID",
+  "1234567890-example.apps.googleusercontent.com",
+  "User"
+)
+```
+
+Restart Android Studio so Gradle inherits the updated environment, then stop existing Gradle daemons and sync/build the project:
+
+```powershell
+.\gradlew.bat --stop
+.\gradlew.bat :app:assembleDebug
+```
+
+The backend needs its own `GOOGLE_CLIENT_ID` environment variable, set to the same Web client ID used by the Android client. In a PowerShell terminal opened in the backend repository, set it before starting the backend with that repository's normal command:
+
+```powershell
+$env:GOOGLE_CLIENT_ID = "1234567890-example.apps.googleusercontent.com"
+# Start the backend using its documented command in this same terminal.
+```
+
+Firebase Cloud Messaging (FCM) is separate from Google sign-in and remains disabled unless `FCM_ENABLED=true` and all of `FCM_PROJECT_ID`, `FCM_APPLICATION_ID`, `FCM_API_KEY`, and `FCM_SENDER_ID` are configured. To enable it later, create/configure the Firebase project and Android app, provide those values through the environment or `local.properties`, and configure the backend's device-registration and push-delivery integration. No Firebase configuration is needed for Google sign-in.
+
 ## Build and test
 
 Run the following commands from the project directory on Windows:

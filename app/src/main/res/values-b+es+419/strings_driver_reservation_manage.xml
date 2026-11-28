@@ -105,8 +105,14 @@
     <string name="edit_reschedule_failed">No se pudo cambiar el horario. Asegúrate de que falten más de cinco minutos para el inicio y de que el horario elegido esté disponible.</string>
     <string name="edit_processing">Procesando…</string>
     <string name="details_status_pending_payment">Pago pendiente</string>
+    <string name="details_payment_rejected_badge">Pago rechazado · Acción requerida</string>
+    <string name="details_payment_rejected_message">Tu tarjeta fue rechazada. Reintenta el pago con otro método de pago.</string>
+    <string name="details_payment_pending_badge">Pago pendiente · Sin pagar</string>
+    <string name="details_payment_pending_message">La reserva no se confirma hasta que se apruebe el pago.</string>
+    <string name="details_payment_declined_notice">El emisor de la tarjeta rechazó el pago. Prueba con otra tarjeta.</string>
     <string name="details_action_complete_payment">Completar pago</string>
     <string name="details_action_retry_payment">Reintentar pago</string>
+    <string name="details_retry_payment_amount">Pagar %1$s</string>
     <string name="details_action_check_payment">Consultar estado del pago</string>
     <string name="details_payment_status">Estado del pago: %1$s</string>
     <string name="details_download_receipt">Descargar comprobante informativo</string>
