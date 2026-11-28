@@ -9,6 +9,11 @@
     <string name="register_phone_placeholder">Enter your phone number</string>
     <string name="register_password_placeholder">8+ characters with upper/lowercase, a number, and a symbol</string>
     <string name="register_terms">I agree to the Terms and Privacy Policy</string>
+    <string name="register_terms_link">Terms and Conditions</string>
+    <string name="register_terms_back">Back to sign up</string>
+    <string name="register_terms_error">Couldn\'t load the Terms and Conditions. Check your connection and try again.</string>
+    <!-- Language code used by the published Terms and Conditions page -->
+    <string name="register_terms_locale">en_US</string>
     <string name="register_existing_account">Already have an account?</string>
 
     <!-- E-mail verification step of the registration (US13, backend) -->

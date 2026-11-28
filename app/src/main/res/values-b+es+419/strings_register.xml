@@ -10,6 +10,10 @@
     <string name="register_phone_placeholder">Ingresa tu número de teléfono</string>
     <string name="register_password_placeholder">8 caracteres o más, con mayúscula, minúscula, número y símbolo</string>
     <string name="register_terms">Acepto los Términos y la Política de privacidad</string>
+    <string name="register_terms_link">Términos y condiciones</string>
+    <string name="register_terms_back">Volver al registro</string>
+    <string name="register_terms_error">No se pudieron cargar los Términos y condiciones. Revisa tu conexión e inténtalo de nuevo.</string>
+    <string name="register_terms_locale">es_419</string>
     <string name="register_existing_account">¿Ya tienes una cuenta?</string>
     <string name="register_verify_title">Verifica tu correo electrónico</string>
     <string name="register_verify_intro">Enviamos un código de 6 dígitos a %1$s. Ingrésalo para crear tu cuenta.</string>
