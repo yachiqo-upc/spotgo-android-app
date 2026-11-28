@@ -110,4 +110,10 @@
     <string name="forgot_success_title">Contraseña actualizada</string>
     <string name="forgot_success_message">Cambiamos tu contraseña y cerramos tus otras sesiones. Inicia sesión con la contraseña nueva.</string>
     <string name="forgot_success_tag">Contraseña actualizada</string>
+    <string name="service_report_title">Reportar un problema</string>
+    <string name="service_report_subject">Asunto</string>
+    <string name="service_report_details">Descripción</string>
+    <string name="service_report_send">Enviar reporte</string>
+    <string name="service_report_sent">Reporte enviado al administrador del estacionamiento.</string>
+    <string name="service_report_failed">No se pudo enviar el reporte. Inténtalo de nuevo.</string>
 </resources>

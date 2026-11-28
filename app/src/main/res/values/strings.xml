@@ -113,4 +113,10 @@
     <string name="forgot_success_title">Password updated</string>
     <string name="forgot_success_message">Your password has been changed and your other sessions were signed out. Sign in with your new password.</string>
     <string name="forgot_success_tag">Password updated</string>
+    <string name="service_report_title">Report a problem</string>
+    <string name="service_report_subject">Subject</string>
+    <string name="service_report_details">Description</string>
+    <string name="service_report_send">Send report</string>
+    <string name="service_report_sent">Report sent to the parking administrator.</string>
+    <string name="service_report_failed">Could not send the report. Try again.</string>
 </resources>

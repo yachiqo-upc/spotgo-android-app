@@ -45,6 +45,7 @@ import com.yachiqo.spotgo.data.repository.RemotePaymentMethod
 import com.yachiqo.spotgo.data.repository.RemotePaymentResult
 import com.yachiqo.spotgo.data.repository.RemoteParkingRepository
 import com.yachiqo.spotgo.data.remote.SpotGoApi
+import com.yachiqo.spotgo.data.remote.ApiResult
 import com.yachiqo.spotgo.data.repository.hoursLabel
 import com.yachiqo.spotgo.data.repository.formatClock
 import com.yachiqo.spotgo.data.repository.isoClock
@@ -65,12 +66,89 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
 
 /** Sheets of the reservation details screen (mockups 07 / 07a / 37 / 37a / 37b). */
 private enum class DetailSheet { CANCEL, EXTEND, EXTEND_CONFIRM }
+
+@Composable
+private fun ReservationProblemReport(reservationId: String) {
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    val sentMessage = stringResource(R.string.service_report_sent)
+    var open by rememberSaveable(reservationId) { mutableStateOf(false) }
+    var subject by rememberSaveable(reservationId) { mutableStateOf("") }
+    var details by rememberSaveable(reservationId) { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+
+    DriverOutlineButton(stringResource(R.string.service_report_title), onClick = {
+        failed = false
+        open = true
+    })
+    SnackbarHost(snackbar)
+    if (!open) return
+
+    AlertDialog(
+        onDismissRequest = { if (!sending) open = false },
+        title = { Text(stringResource(R.string.service_report_title)) },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = subject,
+                    onValueChange = { if (it.length <= 100) subject = it },
+                    label = { Text(stringResource(R.string.service_report_subject)) },
+                    singleLine = true,
+                    enabled = !sending,
+                )
+                OutlinedTextField(
+                    value = details,
+                    onValueChange = { if (it.length <= 500) details = it },
+                    label = { Text(stringResource(R.string.service_report_details)) },
+                    minLines = 2,
+                    enabled = !sending,
+                )
+                if (failed) Text(stringResource(R.string.service_report_failed), color = SpotGoError)
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !sending && subject.isNotBlank() && details.isNotBlank(), onClick = {
+                sending = true
+                failed = false
+                val payload = JSONObject()
+                    .put("reservationId", reservationId)
+                    .put("subject", subject.trim())
+                    .put("details", details.trim())
+                    .toString()
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        SpotGoApi.post("/api/v1/spot-operations/driver-reports", payload)
+                    }
+                    sending = false
+                    if (result is ApiResult.Success) {
+                        open = false
+                        subject = ""
+                        details = ""
+                        snackbar.showSnackbar(sentMessage)
+                    } else {
+                        failed = true
+                    }
+                }
+            }) { Text(stringResource(R.string.service_report_send)) }
+        },
+        dismissButton = {
+            TextButton(enabled = !sending, onClick = { open = false }) {
+                Text(stringResource(android.R.string.cancel))
+            }
+        },
+    )
+}
 
 /** Chosen extension of the extend flow (mockups 37b → 37a). */
 private class ExtendPlan(
@@ -650,6 +728,7 @@ private fun RemoteReservationDetailsScreen(
                     if (isEditable && current.parent_reservation_id == null) {
                         DriverOutlineButton(stringResource(R.string.details_edit), onClick = onEdit)
                     }
+                    ReservationProblemReport(reservationId)
                     if (isActive && runCatching { Instant.parse(current.end_at).isAfter(Instant.now()) }.getOrDefault(false)) {
                         DriverOutlineButton(
                             label = stringResource(R.string.remote_extension_action),
