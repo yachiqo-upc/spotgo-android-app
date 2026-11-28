@@ -1,5 +1,12 @@
 package com.yachiqo.spotgo.presentation.login
 
+import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -24,6 +31,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.data.repository.AuthError
 import com.yachiqo.spotgo.data.repository.AuthRepository
@@ -57,6 +67,8 @@ fun RegisterScreen(
     val password = remember { TextFieldState() }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var acceptedTerms by rememberSaveable { mutableStateOf(false) }
+    // The terms open over the form, so every typed value stays in place.
+    var showTerms by rememberSaveable { mutableStateOf(false) }
     var authError by remember { mutableStateOf<AuthError?>(null) }
     // US13 — step 1 form, step 2 e-mail verification (the account is only
     // created once the 6-digit code is confirmed).
@@ -165,6 +177,12 @@ fun RegisterScreen(
                         Checkbox(checked = acceptedTerms, onCheckedChange = null, modifier = Modifier.size(48.dp))
                         Text(stringResource(R.string.register_terms), style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f))
+                    }
+                    TextButton(
+                        onClick = { focusManager.clearFocus(); showTerms = true },
+                        contentPadding = PaddingValues(horizontal = 6.dp),
+                    ) {
+                        Text(stringResource(R.string.register_terms_link))
                     }
                     Button(
                         onClick = {
@@ -358,6 +376,100 @@ fun RegisterScreen(
             onDismissRequest = { authError = null },
         )
         AuthError.INVALID_CREDENTIALS, AuthError.ACCOUNT_NOT_FOUND, null -> Unit
+    }
+
+    if (showTerms) TermsViewer(onClose = { showTerms = false })
+}
+
+// Official SpotGo Terms and Conditions, shown in-app instead of a bundled copy.
+private const val TERMS_URL = "https://yachiqo-upc.github.io/spotgo-landing/terms/"
+private const val TERMS_HOST = "yachiqo-upc.github.io"
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun TermsViewer(onClose: () -> Unit) {
+    // The page keeps its language in local storage; match the app language.
+    val locale = stringResource(R.string.register_terms_locale)
+    var loading by remember { mutableStateOf(true) }
+    var failed by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilledIconButton(
+                        onClick = onClose,
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                    ) {
+                        FigmaIcon(R.drawable.ic_back, stringResource(R.string.register_terms_back))
+                    }
+                    Text(stringResource(R.string.register_terms_link), style = MaterialTheme.typography.titleMedium)
+                }
+                if (failed) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Text(stringResource(R.string.register_terms_error), style = MaterialTheme.typography.bodyMedium,
+                            color = SpotGoSupportingText)
+                        Button(
+                            onClick = { failed = false; loading = true },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            shape = RoundedCornerShape(16.dp),
+                        ) { Text(stringResource(R.string.state_action_try_again)) }
+                    }
+                } else {
+                    if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    AndroidView(
+                        factory = { context ->
+                            WebView(context).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                webViewClient = object : WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                                        val uri = request.url
+                                        if (uri.scheme == "https" && uri.host == TERMS_HOST) return false
+                                        // Mail and external links leave the viewer.
+                                        try {
+                                            view.context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                                        } catch (e: ActivityNotFoundException) {
+                                            // No app can open this link; stay on the terms.
+                                        }
+                                        return true
+                                    }
+
+                                    override fun onPageFinished(view: WebView, url: String?) {
+                                        view.evaluateJavascript(
+                                            "(function(){try{if(localStorage.getItem('spotgo-language')!=='$locale')" +
+                                                "{localStorage.setItem('spotgo-language','$locale');location.reload();" +
+                                                "return 'reload';}}catch(e){}return 'ready';})()",
+                                        ) { result -> if (result != "\"reload\"") loading = false }
+                                    }
+
+                                    override fun onReceivedError(
+                                        view: WebView,
+                                        request: WebResourceRequest,
+                                        error: WebResourceError,
+                                    ) {
+                                        if (request.isForMainFrame) failed = true
+                                    }
+                                }
+                                loadUrl(TERMS_URL)
+                            }
+                        },
+                        onRelease = { it.destroy() },
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                    )
+                }
+            }
+        }
     }
 }
 
