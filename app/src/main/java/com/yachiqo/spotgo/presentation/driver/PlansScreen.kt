@@ -3,6 +3,8 @@ package com.yachiqo.spotgo.presentation.driver
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import com.yachiqo.spotgo.R
 import com.yachiqo.spotgo.data.repository.RemoteBillingRepository
 import com.yachiqo.spotgo.data.repository.RemotePaymentMethod
@@ -41,6 +44,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun PlansScreen(
     onBack: () -> Unit,
+    onOpenPayments: () -> Unit,
     onNotice: (String) -> Unit,
 ) {
     var plans by remember { mutableStateOf<List<RemoteSubscriptionPlan>?>(null) }
@@ -49,6 +53,11 @@ fun PlansScreen(
     var loading by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var busyPlanCode by remember { mutableStateOf("") }
+    var pendingPlan by remember { mutableStateOf<RemoteSubscriptionPlan?>(null) }
+    var selectedTokenId by remember { mutableStateOf("") }
+    var showPaymentMethodUnavailable by remember { mutableStateOf(false) }
+    var showCancelConfirmation by remember { mutableStateOf(false) }
+    var checkingPaymentMethods by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -69,9 +78,7 @@ fun PlansScreen(
 
     val failure = !loading && (plans == null || subscriptions == null || methods == null)
     val activeSubscription = subscriptions.orEmpty().firstOrNull { it.status == "ACTIVE" }
-    val defaultMethod = methods.orEmpty().firstOrNull { it.isDefault } ?: methods.orEmpty().firstOrNull()
     val successMessage = stringResource(R.string.plans_payment_approved)
-    val tokenMessage = stringResource(R.string.plans_token_required)
     val errorMessage = stringResource(R.string.plans_backend_error)
     val paymentStatusPrefix = stringResource(R.string.plans_payment_status_prefix)
     val cancelledMessage = stringResource(R.string.plans_cancelled)
@@ -136,36 +143,35 @@ fun PlansScreen(
                             discount = stringResource(R.string.plans_discount, plan.discountPercent),
                             current = isCurrent,
                             processing = busy && busyPlanCode == plan.code,
-                            enabled = !busy && activeSubscription == null && defaultMethod != null,
+                            enabled = !busy && !checkingPaymentMethods && activeSubscription == null,
                             buttonLabel = when {
                                 isCurrent -> stringResource(R.string.plans_current_button)
                                 activeSubscription != null -> stringResource(R.string.plans_cancel_first)
                                 else -> stringResource(R.string.plans_subscribe)
                             },
                             onClick = {
-                                val method = defaultMethod
-                                if (method == null) {
-                                    onNotice(tokenMessage)
-                                } else if (!busy) {
-                                    busy = true
+                                if (!busy && !checkingPaymentMethods) {
+                                    checkingPaymentMethods = true
                                     busyPlanCode = plan.code
                                     scope.launch {
-                                        val initialPayment = withContext(Dispatchers.IO) {
-                                            RemoteBillingRepository.paySubscription(plan.code, method.tokenId)
+                                        val refreshedMethods = withContext(Dispatchers.IO) {
+                                            RemoteBillingRepository.loadPaymentMethods()
                                         }
-                                        val payment = RemoteBillingRepository.awaitPaymentResolution(initialPayment)
-                                        busy = false
+                                        checkingPaymentMethods = false
                                         busyPlanCode = ""
-                                        when (payment) {
-                                            is RemotePaymentResult.Success -> {
-                                                if (payment.status == "APPROVED") {
-                                                    subscriptions = withContext(Dispatchers.IO) {
-                                                        RemoteBillingRepository.loadSubscriptions()
-                                                    }
-                                                    onNotice(successMessage)
-                                                } else onNotice("$paymentStatusPrefix ${context.getString(com.yachiqo.spotgo.presentation.paymentStatusResource(payment.status))}")
+                                        when (refreshedMethods) {
+                                            is RemotePaymentMethodsResult.Success -> {
+                                                methods = refreshedMethods.methods
+                                                if (refreshedMethods.methods.isEmpty()) {
+                                                    showPaymentMethodUnavailable = true
+                                                } else {
+                                                    selectedTokenId = refreshedMethods.methods
+                                                        .firstOrNull { it.isDefault }?.tokenId
+                                                        ?: refreshedMethods.methods.first().tokenId
+                                                    pendingPlan = plan
+                                                }
                                             }
-                                            RemotePaymentResult.Failure -> onNotice(errorMessage)
+                                            RemotePaymentMethodsResult.Failure -> onNotice(errorMessage)
                                         }
                                     }
                                 }
@@ -177,34 +183,174 @@ fun PlansScreen(
                         DriverOutlineButton(
                             label = stringResource(R.string.plans_cancel_subscription),
                             enabled = !busy,
-                            onClick = {
-                                if (!busy) scope.launch {
-                                    busy = true
-                                    val cancelled = withContext(Dispatchers.IO) {
-                                        RemoteBillingRepository.cancelSubscription(activeSubscription.subscriptionId)
-                                    }
-                                    if (cancelled) {
-                                        subscriptions = withContext(Dispatchers.IO) {
-                                            RemoteBillingRepository.loadSubscriptions()
-                                        }
-                                    }
-                                    busy = false
-                                    onNotice(if (cancelled) cancelledMessage else errorMessage)
-                                }
-                            },
+                            onClick = { showCancelConfirmation = true },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
 
-                    if (defaultMethod == null && plans.orEmpty().isNotEmpty()) {
+                    if (methods.orEmpty().isEmpty() && plans.orEmpty().isNotEmpty()) {
                         Text(stringResource(R.string.plans_tokenization_notice),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (busy) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+                    if (busy || checkingPaymentMethods) CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
                 }
             }
         }
+    }
+
+    pendingPlan?.let { plan ->
+        val selectedMethod = methods.orEmpty().firstOrNull { it.tokenId == selectedTokenId }
+        AlertDialog(
+            onDismissRequest = { if (!busy) pendingPlan = null },
+            title = { Text(stringResource(R.string.plans_confirm_subscription_title)) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        stringResource(
+                            R.string.plans_confirm_subscription_summary,
+                            plan.code,
+                            plan.price.toDoubleOrNull()?.let(::money)
+                                ?: stringResource(R.string.plans_price_unavailable),
+                            stringResource(R.string.plans_billing_period, plan.billingPeriodMonths),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(stringResource(R.string.plans_confirm_card_label),
+                        style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    methods.orEmpty().forEach { method ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { selectedTokenId = method.tokenId },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = method.tokenId == selectedTokenId,
+                                onClick = { selectedTokenId = method.tokenId },
+                            )
+                            Text(
+                                method.label,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy && selectedMethod != null,
+                    onClick = {
+                        val method = selectedMethod ?: return@TextButton
+                        busy = true
+                        busyPlanCode = plan.code
+                        scope.launch {
+                            val initialPayment = withContext(Dispatchers.IO) {
+                                RemoteBillingRepository.paySubscription(plan.code, method.tokenId)
+                            }
+                            val payment = RemoteBillingRepository.awaitPaymentResolution(initialPayment)
+                            busy = false
+                            busyPlanCode = ""
+                            pendingPlan = null
+                            when (payment) {
+                                is RemotePaymentResult.Success -> {
+                                    if (payment.status == "APPROVED") {
+                                        subscriptions = withContext(Dispatchers.IO) {
+                                            RemoteBillingRepository.loadSubscriptions()
+                                        }
+                                        onNotice(successMessage)
+                                    } else {
+                                        onNotice("$paymentStatusPrefix ${context.getString(com.yachiqo.spotgo.presentation.paymentStatusResource(payment.status))}")
+                                    }
+                                }
+                                RemotePaymentResult.Failure -> onNotice(errorMessage)
+                            }
+                        }
+                    },
+                ) {
+                    if (busy) CircularProgressIndicator(Modifier.size(18.dp))
+                    else Text(stringResource(R.string.plans_confirm_subscription))
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { pendingPlan = null }) {
+                    Text(stringResource(R.string.plans_cancel))
+                }
+            },
+        )
+    }
+
+    if (showPaymentMethodUnavailable) {
+        AlertDialog(
+            onDismissRequest = { showPaymentMethodUnavailable = false },
+            title = { Text(stringResource(R.string.plans_payment_method_required_title)) },
+            text = { Text(stringResource(R.string.plans_payment_method_required_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPaymentMethodUnavailable = false
+                    onOpenPayments()
+                }) {
+                    Text(stringResource(R.string.plans_go_to_payments))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPaymentMethodUnavailable = false }) {
+                    Text(stringResource(R.string.plans_cancel))
+                }
+            },
+        )
+    }
+
+    if (showCancelConfirmation) {
+        val subscription = activeSubscription
+        val endDate = subscription?.endAt?.takeIf(String::isNotBlank)?.let(::isoDateLabel)
+        AlertDialog(
+            onDismissRequest = { if (!busy) showCancelConfirmation = false },
+            title = {
+                Text(stringResource(
+                    R.string.plans_cancel_confirmation_title,
+                    subscription?.let { stringResource(planDisplayNameResource(it.planCode)) }.orEmpty(),
+                ))
+            },
+            text = {
+                Text(
+                    if (endDate != null) stringResource(R.string.plans_cancel_confirmation_message, endDate)
+                    else stringResource(R.string.plans_cancel_confirmation_message_no_date),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        if (subscription != null && !busy) scope.launch {
+                            busy = true
+                            val cancelled = withContext(Dispatchers.IO) {
+                                RemoteBillingRepository.cancelSubscription(subscription.subscriptionId)
+                            }
+                            if (cancelled) {
+                                subscriptions = withContext(Dispatchers.IO) {
+                                    RemoteBillingRepository.loadSubscriptions()
+                                }
+                            }
+                            busy = false
+                            showCancelConfirmation = false
+                            onNotice(if (cancelled) cancelledMessage else errorMessage)
+                        }
+                    },
+                ) {
+                    if (busy) CircularProgressIndicator(Modifier.size(18.dp))
+                    else Text(stringResource(R.string.plans_confirm_cancellation))
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { showCancelConfirmation = false }) {
+                    Text(stringResource(R.string.plans_keep_plan))
+                }
+            },
+        )
     }
 }
 
@@ -241,5 +387,5 @@ private fun PlanCard(
 @Preview(widthDp = 412, heightDp = 915)
 @Composable
 private fun PlansPreview() {
-    SpotGoTheme { PlansScreen({}, {}) }
+    SpotGoTheme { PlansScreen({}, {}, {}) }
 }

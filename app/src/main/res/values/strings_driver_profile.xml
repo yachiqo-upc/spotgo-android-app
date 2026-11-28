@@ -44,5 +44,7 @@
     <string name="profile_subscription_none">No active paid subscription</string>
     <string name="profile_permitted_zones">Permitted zones</string>
     <string name="profile_zones_summary">Access is managed by SpotGo</string>
+    <string name="profile_terms_conditions">Terms and conditions</string>
+    <string name="profile_terms_conditions_summary">Review SpotGo’s terms and privacy policy</string>
     <string name="profile_sign_out">Sign out</string>
 </resources>

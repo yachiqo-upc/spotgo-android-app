@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import com.yachiqo.spotgo.data.repository.ParkingCatalogResult
 import com.yachiqo.spotgo.data.repository.ParkingFacilityListing
+import com.yachiqo.spotgo.data.repository.AuthError
 import com.yachiqo.spotgo.data.repository.AuthRepository
 import com.yachiqo.spotgo.data.repository.RemoteBillingRepository
 import com.yachiqo.spotgo.data.repository.RemotePaymentMethodMutationResult
@@ -94,6 +95,155 @@ class RemoteRepositoryHttpTest {
     }
 
     @Test
+    fun activePaymentMethodsAreLoadedIncludingTokensWithExpirationYear2099() {
+        server.handler = { request ->
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/payment-tokens", request.path)
+            StubResponse(
+                200,
+                """[
+                    {"tokenId":"token-default","brand":"VISA","lastFour":"4242","expirationMonth":12,"expirationYear":2099,"status":"ACTIVE","isDefault":true},
+                    {"tokenId":"token-inactive","brand":"VISA","lastFour":"0000","expirationMonth":1,"expirationYear":2025,"status":"REVOKED","isDefault":false}
+                ]""",
+            )
+        }
+
+        val result = RemoteBillingRepository.loadPaymentMethods()
+
+        assertTrue(result is com.yachiqo.spotgo.data.repository.RemotePaymentMethodsResult.Success)
+        val methods = (result as com.yachiqo.spotgo.data.repository.RemotePaymentMethodsResult.Success).methods
+        assertEquals(1, methods.size)
+        assertEquals("token-default", methods.single().tokenId)
+        assertEquals("VISA •••• 4242", methods.single().label)
+        assertEquals(2099, methods.single().expirationYear)
+        assertTrue(methods.single().isDefault)
+    }
+
+    @Test
+    fun reservationPaymentUsesTheSelectedPaymentTokenId() {
+        server.handler = { request ->
+            when (request.path) {
+                "/api/v1/digital-payments/reservations/reservation-1" -> StubResponse(
+                    201,
+                    """{"paymentId":"payment-1"}""",
+                )
+                "/api/v1/digital-payments/payment-1/process" -> StubResponse(
+                    200,
+                    """{"status":"APPROVED"}""",
+                )
+                else -> StubResponse(404, "{}")
+            }
+        }
+
+        val result = RemoteBillingRepository.payReservation("reservation-1", "selected-token")
+
+        assertEquals(RemotePaymentResult.Success("APPROVED", "payment-1"), result)
+        assertEquals("selected-token", Regex(""""tokenId":"([^"]+)"""")
+            .find(server.requests.first().body)?.groupValues?.get(1))
+        assertEquals(
+            listOf(
+                "/api/v1/digital-payments/reservations/reservation-1",
+                "/api/v1/digital-payments/payment-1/process",
+            ),
+            server.requests.map { it.path },
+        )
+    }
+
+    @Test
+    fun rejectedPaymentResponseRemainsARejectedStatusForClearUserFeedback() {
+        server.handler = { request ->
+            when (request.path) {
+                "/api/v1/digital-payments/reservations/reservation-1" ->
+                    StubResponse(201, """{"paymentId":"payment-1"}""")
+                "/api/v1/digital-payments/payment-1/process" ->
+                    StubResponse(402, """{"status":"REJECTED","message":"Card declined"}""")
+                else -> StubResponse(404, "{}")
+            }
+        }
+
+        val result = RemoteBillingRepository.payReservation("reservation-1", "token-1")
+
+        assertEquals(RemotePaymentResult.Success("REJECTED", "payment-1"), result)
+    }
+
+    @Test
+    fun retryPaymentSendsOnlyTheSelectedTokenToTheExistingPayment() {
+        server.handler = { request ->
+            assertEquals("POST", request.method)
+            assertEquals("/api/v1/digital-payments/payment-1/retry", request.path)
+            StubResponse(200, """{"status":"PENDING"}""")
+        }
+
+        val first = RemoteBillingRepository.retry("payment-1", "token-1")
+        val second = RemoteBillingRepository.retry("payment-1", "token-2")
+
+        assertEquals(RemotePaymentResult.Success("PENDING", "payment-1"), first)
+        assertEquals(RemotePaymentResult.Success("PENDING", "payment-1"), second)
+        val requests = server.requests
+        assertTrue(requests[0].body.contains("\"tokenId\":\"token-1\""))
+        assertTrue(requests[1].body.contains("\"tokenId\":\"token-2\""))
+        assertEquals("""{"tokenId":"token-1"}""", requests[0].body)
+        assertEquals("""{"tokenId":"token-2"}""", requests[1].body)
+    }
+
+    @Test
+    fun paymentDetailsIncludeTokenUsedForTheReservationAttempt() {
+        server.handler = { request ->
+            assertEquals("GET", request.method)
+            assertEquals("/api/v1/digital-payments/payment-1", request.path)
+            StubResponse(
+                200,
+                """{"paymentId":"payment-1","tokenId":"token-last-used","operationType":"RESERVATION","amount":"10.00","currency":"PEN","status":"REJECTED","createdAt":"2026-11-28T10:00:00Z"}""",
+            )
+        }
+
+        val payment = RemoteBillingRepository.paymentDetails("payment-1")
+
+        assertEquals("token-last-used", payment?.tokenId)
+        assertEquals("REJECTED", payment?.status)
+    }
+
+    @Test
+    fun reservationRetryReusesPaymentAndPollsUntilApproved() {
+        var statusChecks = 0
+        server.handler = { request ->
+            when {
+                request.method == "POST" &&
+                    request.path == "/api/v1/digital-payments/payment-1/retry" ->
+                    StubResponse(200, """{"status":"PENDING"}""")
+                request.method == "GET" &&
+                    request.path == "/api/v1/digital-payments/payment-1" -> {
+                    statusChecks++
+                    val status = if (statusChecks == 1) "PENDING" else "APPROVED"
+                    StubResponse(
+                        200,
+                        """{"paymentId":"payment-1","tokenId":"token-4242","operationType":"RESERVATION","amount":"10.00","currency":"PEN","status":"$status","createdAt":"2026-11-28T10:00:00Z"}""",
+                    )
+                }
+                else -> StubResponse(404, "{}")
+            }
+        }
+
+        val initial = RemoteBillingRepository.retryReservationPayment("payment-1", "token-4242")
+        val final = kotlinx.coroutines.runBlocking {
+            RemoteBillingRepository.awaitPaymentResolution(initial)
+        }
+
+        assertEquals(RemotePaymentResult.Success("PENDING", "payment-1"), initial)
+        assertEquals(RemotePaymentResult.Success("APPROVED", "payment-1"), final)
+        val requests = server.requests
+        assertEquals(
+            listOf(
+                "POST:/api/v1/digital-payments/payment-1/retry",
+                "GET:/api/v1/digital-payments/payment-1",
+                "GET:/api/v1/digital-payments/payment-1",
+            ),
+            requests.map { "${it.method}:${it.path}" },
+        )
+        assertEquals("""{"tokenId":"token-4242"}""", requests.first().body)
+    }
+
+    @Test
     fun paymentMethodCanBeRemovedThroughTheAuthenticatedBackendEndpoint() {
         server.handler = { request ->
             assertEquals("DELETE", request.method)
@@ -127,6 +277,7 @@ class RemoteRepositoryHttpTest {
         assertEquals(RemotePaymentResult.Success("APPROVED", "payment-2"), second)
         val createRequests = server.requests.filter { it.path == "/api/v1/digital-payments/subscriptions" }
         assertTrue(createRequests.all { it.body.contains("\"planCode\":\"DRIVER_MONTHLY\"") })
+        assertTrue(createRequests.all { it.body.contains("\"tokenId\":\"token-1\"") })
         val idempotencyKeys = createRequests.map { Regex("\"idempotencyKey\":\"([^\"]+)\"").find(it.body)!!.groupValues[1] }
         assertNotEquals(idempotencyKeys[0], idempotencyKeys[1])
     }
@@ -154,6 +305,22 @@ class RemoteRepositoryHttpTest {
         assertTrue(server.requests[0].body.contains("\"idToken\":\"google-id-token\""))
         assertEquals(null, server.requests[0].authorization)
         assertEquals("Bearer google-access", server.requests[1].authorization)
+    }
+
+    @Test
+    fun googleSignInReportsBackendNotConfiguredOn503() {
+        server.handler = { StubResponse(503, "{}") }
+
+        val result = AuthRepository.sign_in_with_google(
+            keep_signed_in = true,
+            id_token = "google-id-token",
+        )
+
+        assertEquals(
+            AuthError.GOOGLE_NOT_CONFIGURED,
+            (result as com.yachiqo.spotgo.data.repository.AuthResult.Failure).error,
+        )
+        assertEquals("/api/v1/authentication/google", server.requests.single().path)
     }
 
     @Test

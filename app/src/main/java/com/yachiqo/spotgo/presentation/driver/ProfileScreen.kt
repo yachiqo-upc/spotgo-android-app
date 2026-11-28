@@ -28,6 +28,7 @@ import com.yachiqo.spotgo.data.repository.RemoteVehicleRepository
 import com.yachiqo.spotgo.data.repository.VehicleListResult
 import com.yachiqo.spotgo.locale.AppLocale
 import com.yachiqo.spotgo.presentation.driver.components.*
+import com.yachiqo.spotgo.presentation.login.TermsViewer
 import com.yachiqo.spotgo.ui.theme.SpotGoTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,6 +47,7 @@ fun ProfileScreen(
     var activeSubscription by remember { mutableStateOf<RemoteSubscription?>(null) }
     var subscriptionLoadFailed by remember { mutableStateOf(false) }
     var languagePickerVisible by remember { mutableStateOf(false) }
+    var termsVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
@@ -106,6 +108,10 @@ fun ProfileScreen(
             ProfileRow(stringResource(R.string.profile_subscription), subscriptionSummary, onPlans)
             ProfileRow(stringResource(R.string.profile_permitted_zones), stringResource(R.string.profile_zones_summary),
                 onUnavailableAction)
+            ProfileRow(
+                stringResource(R.string.profile_terms_conditions),
+                stringResource(R.string.profile_terms_conditions_summary),
+            ) { termsVisible = true }
         }
         DriverOutlineButton(stringResource(R.string.profile_sign_out), onSignOut, color = Color(0xFFFF4D5A))
     }
@@ -143,6 +149,7 @@ fun ProfileScreen(
             },
         )
     }
+    if (termsVisible) TermsViewer(onClose = { termsVisible = false })
 }
 
 @Composable

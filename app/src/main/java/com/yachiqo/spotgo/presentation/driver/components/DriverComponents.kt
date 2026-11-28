@@ -75,19 +75,27 @@ internal fun DriverPanel(
 }
 
 @Composable
-internal fun StatusBadge(label: String, positive: Boolean = true) {
+internal fun StatusBadge(label: String, positive: Boolean = true, error: Boolean = false) {
+    val foreground = when {
+        positive -> DriverAvailable
+        error -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.primary
+    }
     Surface(
-        color = if (positive) DriverAvailableContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = when {
+            positive -> DriverAvailableContainer
+            error -> MaterialTheme.colorScheme.errorContainer
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
+        },
         shape = RoundedCornerShape(100.dp),
     ) {
         Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Image(painterResource(if (positive) R.drawable.status_available else R.drawable.status_upcoming),
                 contentDescription = null, modifier = Modifier.size(8.dp),
-                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
-                    if (positive) DriverAvailable else MaterialTheme.colorScheme.primary))
+                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(foreground))
             Text(label, style = MaterialTheme.typography.bodySmall,
-                color = if (positive) DriverAvailable else MaterialTheme.colorScheme.primary)
+                color = foreground)
         }
     }
 }

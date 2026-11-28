@@ -45,5 +45,7 @@
     <string name="profile_subscription_none">No tienes una suscripción de pago activa</string>
     <string name="profile_permitted_zones">Zonas permitidas</string>
     <string name="profile_zones_summary">SpotGo administra el acceso</string>
+    <string name="profile_terms_conditions">Términos y condiciones</string>
+    <string name="profile_terms_conditions_summary">Consulta los términos y la política de privacidad de SpotGo</string>
     <string name="profile_sign_out">Cerrar sesión</string>
 </resources>

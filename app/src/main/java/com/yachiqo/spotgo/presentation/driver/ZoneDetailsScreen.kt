@@ -66,7 +66,8 @@ import java.time.ZoneId
 /** Sheets of the zone-details reserve flow (mockup 04 + wireflow driver-02). */
 private enum class ZoneSheet {
     VEHICLE, DATE, TIME, DURATION, SPOTS, REVIEW,
-    NO_VEHICLE, ZONE_FULL, VEHICLE_BUSY, SPOT_TAKEN, OUTSTANDING_BALANCE, PAST_TIME, PAYMENT_METHOD, PAYMENT_ERROR,
+    NO_VEHICLE, ZONE_FULL, VEHICLE_BUSY, SPOT_TAKEN, OUTSTANDING_BALANCE, PAST_TIME,
+    PAYMENT_METHOD_LOADING, PAYMENT_METHOD_SELECTION, PAYMENT_METHOD_UNAVAILABLE, PAYMENT_ERROR,
 }
 
 private data class LoadedZoneDriverData(
@@ -90,6 +91,7 @@ fun ZoneDetailsScreen(
     onPaid: (String?) -> Unit,
     onMyVehicles: () -> Unit,
     onOpenBalance: () -> Unit,
+    onOpenPayments: () -> Unit,
     onUnavailableAction: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -296,7 +298,7 @@ fun ZoneDetailsScreen(
                         remoteDriverDataFailed -> sheet = ZoneSheet.PAYMENT_ERROR
                         backendMode && remoteHasOpenBalance -> sheet = ZoneSheet.OUTSTANDING_BALANCE
                         !backendMode && availableCount == 0 -> sheet = ZoneSheet.ZONE_FULL
-                        backendMode && remotePaymentMethods.isEmpty() -> sheet = ZoneSheet.PAYMENT_METHOD
+                        backendMode && remotePaymentMethods.isEmpty() -> sheet = ZoneSheet.PAYMENT_METHOD_UNAVAILABLE
                         !backendMode && PaymentRepository.has_open_balance() -> sheet = ZoneSheet.OUTSTANDING_BALANCE
                         // User request — the slot must still be in the future (Peru time).
                         PeruClock.isPast(ParkingRepository.resolve_start(dateOption, startTime)) ->
@@ -458,28 +460,64 @@ fun ZoneDetailsScreen(
                 }
             },
             onChangePaymentMethod = {
-                if (backendMode) sheet = ZoneSheet.PAYMENT_METHOD else onUnavailableAction()
+                if (backendMode) {
+                    sheet = ZoneSheet.PAYMENT_METHOD_LOADING
+                    scope.launch {
+                        when (val result = withContext(Dispatchers.IO) {
+                            RemoteBillingRepository.loadPaymentMethods()
+                        }) {
+                            is RemotePaymentMethodsResult.Success -> {
+                                val methods = result.methods
+                                remotePaymentMethods = methods
+                                selectedTokenId = methods.firstOrNull { it.tokenId == selectedTokenId }?.tokenId
+                                    ?: methods.firstOrNull { it.isDefault }?.tokenId
+                                    ?: methods.firstOrNull()?.tokenId.orEmpty()
+                                sheet = if (methods.isEmpty()) {
+                                    ZoneSheet.PAYMENT_METHOD_UNAVAILABLE
+                                } else {
+                                    ZoneSheet.PAYMENT_METHOD_SELECTION
+                                }
+                            }
+                            RemotePaymentMethodsResult.Failure -> {
+                                paymentError = context.getString(R.string.zone_backend_data_error)
+                                sheet = ZoneSheet.PAYMENT_ERROR
+                            }
+                        }
+                    }
+                } else onUnavailableAction()
             },
             onDismissRequest = { sheet = null },
         )
 
-        ZoneSheet.PAYMENT_METHOD -> StateBottomSheet(
+        ZoneSheet.PAYMENT_METHOD_LOADING -> PaymentMethodsLoadingSheet(
+            onDismissRequest = { sheet = ZoneSheet.REVIEW },
+        )
+
+        ZoneSheet.PAYMENT_METHOD_SELECTION -> PaymentMethodSheet(
+            methods = remotePaymentMethods,
+            selectedTokenId = selectedTokenId,
+            onContinue = { tokenId ->
+                selectedTokenId = tokenId
+                sheet = ZoneSheet.REVIEW
+            },
+            onDismissRequest = { sheet = ZoneSheet.REVIEW },
+        )
+
+        ZoneSheet.PAYMENT_METHOD_UNAVAILABLE -> StateBottomSheet(
             title = stringResource(R.string.zone_payment_method_unavailable_title),
             message = stringResource(R.string.zone_payment_method_unavailable_message),
-            primaryText = stringResource(R.string.state_action_close),
-            onPrimary = { sheet = null },
+            primaryText = stringResource(R.string.zone_go_to_payments),
+            onPrimary = { sheet = null; onOpenPayments() },
             secondaryText = stringResource(R.string.state_action_close),
-            onSecondary = { sheet = null },
-            onDismissRequest = { sheet = null },
+            onSecondary = { sheet = ZoneSheet.REVIEW },
+            onDismissRequest = { sheet = ZoneSheet.REVIEW },
         )
 
         ZoneSheet.PAYMENT_ERROR -> StateBottomSheet(
             title = stringResource(R.string.zone_payment_failed_title),
             message = paymentError,
-            primaryText = stringResource(R.string.state_action_close),
+            primaryText = stringResource(R.string.zone_payment_failed_close),
             onPrimary = { sheet = null },
-            secondaryText = stringResource(R.string.state_action_close),
-            onSecondary = { sheet = null },
             onDismissRequest = { sheet = null },
         )
 
@@ -646,6 +684,6 @@ private fun ZoneStat(value: String, label: String, color: Color, modifier: Modif
 private fun ZoneDetailsPreview() {
     SpotGoTheme {
         ZoneDetailsScreen(zoneId = "zne-seed-0003", onBack = {}, onPaid = {}, onMyVehicles = {},
-            onOpenBalance = {}, onUnavailableAction = {})
+            onOpenBalance = {}, onOpenPayments = {}, onUnavailableAction = {})
     }
 }

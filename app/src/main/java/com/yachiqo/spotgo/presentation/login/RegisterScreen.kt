@@ -375,19 +375,23 @@ fun RegisterScreen(
             onSecondary = { authError = null },
             onDismissRequest = { authError = null },
         )
-        AuthError.INVALID_CREDENTIALS, AuthError.ACCOUNT_NOT_FOUND, null -> Unit
+        AuthError.INVALID_CREDENTIALS, AuthError.ACCOUNT_NOT_FOUND,
+        // Google-only failures; registration has no federated entry point.
+        AuthError.GOOGLE_UNAUTHORIZED, AuthError.GOOGLE_ACCOUNT_WITH_PASSWORD,
+        AuthError.GOOGLE_NOT_CONFIGURED,
+        null -> Unit
     }
 
     if (showTerms) TermsViewer(onClose = { showTerms = false })
 }
 
 // Official SpotGo Terms and Conditions, shown in-app instead of a bundled copy.
-private const val TERMS_URL = "https://yachiqo-upc.github.io/spotgo-landing/terms/"
+internal const val TERMS_URL = "https://yachiqo-upc.github.io/spotgo-landing/terms/"
 private const val TERMS_HOST = "yachiqo-upc.github.io"
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TermsViewer(onClose: () -> Unit) {
+internal fun TermsViewer(onClose: () -> Unit) {
     // The page keeps its language in local storage; match the app language.
     val locale = stringResource(R.string.register_terms_locale)
     var loading by remember { mutableStateOf(true) }

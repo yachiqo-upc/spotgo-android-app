@@ -26,7 +26,7 @@ sealed interface GoogleSignInResult {
     /** No token (no account on the device, network error, wrong client id…). */
     data class Failed(val reason: String) : GoogleSignInResult
 
-    /** SPOTGO_GOOGLE_WEB_CLIENT_ID is empty: keep the simulated chooser. */
+    /** SPOTGO_GOOGLE_WEB_CLIENT_ID is empty; Google sign-in is unavailable in this build. */
     data object NotConfigured : GoogleSignInResult
 }
 
@@ -40,9 +40,9 @@ private data class IdTokenClaims(
 /**
  * Google Identity (Sign-In through Credential Manager).
  *
- * Everything is wired and runs as soon as SPOTGO_GOOGLE_WEB_CLIENT_ID is set
- * in local.properties; while it is empty the Login screen keeps the
- * simulated account chooser of the mockups (GoogleAccountSheet).
+ * Sign-in is enabled when SPOTGO_GOOGLE_WEB_CLIENT_ID is set in the process
+ * environment or local.properties. When it is empty, the Login screen disables
+ * Google sign-in while leaving email/password sign-in available.
  *
  * NOTE: googleid 1.1.1 exposes displayName / givenName / familyName / id but
  * not the e-mail, so `email` is read from the payload of the id token (the

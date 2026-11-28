@@ -17,8 +17,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import com.yachiqo.spotgo.R
+import com.yachiqo.spotgo.data.repository.CardForm
+import com.yachiqo.spotgo.data.repository.CardFormError
+import com.yachiqo.spotgo.data.repository.CardFormInput
 import com.yachiqo.spotgo.data.repository.RemoteAdditionalCharge
 import com.yachiqo.spotgo.data.repository.RemoteBillingDocumentEntry
 import com.yachiqo.spotgo.data.repository.RemoteBillingRepository
@@ -49,8 +53,12 @@ fun PaymentsScreen(
     var documents by remember { mutableStateOf<List<RemoteBillingDocumentEntry>?>(null) }
     var loading by remember { mutableStateOf(true) }
     var showAddMethodDialog by remember { mutableStateOf(false) }
-    var simulatedBrand by remember { mutableStateOf("visa") }
-    var simulatedLastFour by remember { mutableStateOf("4242") }
+    // Transient card form: lives only while the dialog is open, never saved
+    // (toString is masked) and discarded on save or close.
+    var cardForm by remember { mutableStateOf(CardFormInput("", "", "", "")) }
+    var cardNumberField by remember { mutableStateOf(TextFieldValue("")) }
+    var cardExpirationField by remember { mutableStateOf(TextFieldValue("")) }
+    var cardError by remember { mutableStateOf<CardFormError?>(null) }
     var addingMethod by remember { mutableStateOf(false) }
     var methodPendingRemoval by remember { mutableStateOf<RemotePaymentMethod?>(null) }
     var removingMethod by remember { mutableStateOf(false) }
@@ -143,9 +151,11 @@ fun PaymentsScreen(
                         methods.orEmpty().forEach { method ->
                             ListItem(
                                 headlineContent = { Text(method.label, style = MaterialTheme.typography.titleMedium) },
+                                // Only brand + last four: the backend token carries no real expiry.
                                 supportingContent = {
-                                    Text(stringResource(R.string.payments_expiration, method.expirationMonth, method.expirationYear),
-                                        style = MaterialTheme.typography.bodyMedium)
+                                    Text(stringResource(R.string.payments_test_mode),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 },
                                 trailingContent = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -231,36 +241,124 @@ fun PaymentsScreen(
 
                 if (showAddMethodDialog) {
                     AlertDialog(
-                        onDismissRequest = { if (!addingMethod) showAddMethodDialog = false },
+                        onDismissRequest = {
+                            if (!addingMethod) {
+                                showAddMethodDialog = false
+                                cardForm = CardFormInput("", "", "", "")
+                                cardNumberField = TextFieldValue("")
+                                cardExpirationField = TextFieldValue("")
+                                cardError = null
+                            }
+                        },
                         title = { Text(stringResource(R.string.payments_add_method)) },
                         text = {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                // Visible label: this is a test environment, no real card is charged.
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shape = MaterialTheme.shapes.small,
+                                ) {
+                                    Text(
+                                        stringResource(R.string.payments_test_mode),
+                                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
                                 Text(stringResource(R.string.payments_simulated_method_help),
                                     style = MaterialTheme.typography.bodyMedium)
                                 OutlinedTextField(
-                                    value = simulatedBrand,
-                                    onValueChange = { simulatedBrand = it.trim().lowercase() },
-                                    label = { Text(stringResource(R.string.payments_card_brand)) },
-                                    supportingText = { Text(stringResource(R.string.payments_card_brands_hint)) },
+                                    value = cardForm.holder,
+                                    onValueChange = { cardForm = cardForm.with(holder = it); cardError = null },
+                                    label = { Text(stringResource(R.string.payments_card_holder)) },
+                                    isError = cardError == CardFormError.HOLDER_REQUIRED,
+                                    supportingText = if (cardError == CardFormError.HOLDER_REQUIRED) {
+                                        { Text(stringResource(R.string.payments_card_holder_required)) }
+                                    } else null,
                                     singleLine = true,
                                 )
                                 OutlinedTextField(
-                                    value = simulatedLastFour,
-                                    onValueChange = { value -> simulatedLastFour = value.filter(Char::isDigit).take(4) },
-                                    label = { Text(stringResource(R.string.payments_last_four)) },
+                                    value = cardNumberField,
+                                    onValueChange = { value ->
+                                        // Raw digits only; the grouping is applied on
+                                        // screen by the VisualTransformation so the
+                                        // state rewrite never drags the cursor.
+                                        cardNumberField = CardFormFormat.capNumber(value)
+                                        cardForm = cardForm.with(number = cardNumberField.text)
+                                        cardError = null
+                                    },
+                                    visualTransformation = CardNumberVisualTransformation,
+                                    label = { Text(stringResource(R.string.payments_card_number)) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    isError = cardError == CardFormError.NUMBER_INVALID ||
+                                        cardError == CardFormError.BRAND_UNSUPPORTED,
+                                    supportingText = when (cardError) {
+                                        CardFormError.NUMBER_INVALID -> {
+                                            { Text(stringResource(R.string.payments_card_number_invalid)) }
+                                        }
+                                        CardFormError.BRAND_UNSUPPORTED -> {
+                                            { Text(stringResource(R.string.payments_card_brand_unsupported)) }
+                                        }
+                                        else -> null
+                                    },
                                     singleLine = true,
                                 )
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    OutlinedTextField(
+                                        value = cardExpirationField,
+                                        onValueChange = { value ->
+                                            // Raw "MMYY" digits; "MM/YY" only on screen.
+                                            cardExpirationField = CardFormFormat.capExpiration(value)
+                                            cardForm = cardForm.with(expiration = cardExpirationField.text)
+                                            cardError = null
+                                        },
+                                        visualTransformation = CardExpirationVisualTransformation,
+                                        label = { Text(stringResource(R.string.payments_card_expiry)) },
+                                        placeholder = { Text(stringResource(R.string.payments_card_expiry_hint)) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        isError = cardError == CardFormError.EXPIRY_INVALID,
+                                        supportingText = if (cardError == CardFormError.EXPIRY_INVALID) {
+                                            { Text(stringResource(R.string.payments_card_expiry_invalid)) }
+                                        } else null,
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    OutlinedTextField(
+                                        value = cardForm.cvv,
+                                        onValueChange = { value ->
+                                            cardForm = cardForm.with(cvv = value.filter(Char::isDigit).take(4))
+                                            cardError = null
+                                        },
+                                        label = { Text(stringResource(R.string.payments_card_cvv)) },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                        isError = cardError == CardFormError.CVV_INVALID,
+                                        supportingText = if (cardError == CardFormError.CVV_INVALID) {
+                                            { Text(stringResource(R.string.payments_card_cvv_invalid)) }
+                                        } else null,
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
                             }
                         },
                         confirmButton = {
                             TextButton(
-                                enabled = !addingMethod && simulatedBrand in setOf("visa", "mastercard", "amex", "discover") && simulatedLastFour.length == 4,
+                                enabled = !addingMethod,
                                 onClick = {
+                                    val error = CardForm.validate(cardForm)
+                                    if (error != null) {
+                                        cardError = error
+                                        return@TextButton
+                                    }
+                                    val providerTokenRef = CardForm.providerTokenRef(cardForm)
+                                    if (providerTokenRef == null) {
+                                        cardError = CardFormError.BRAND_UNSUPPORTED
+                                        return@TextButton
+                                    }
                                     addingMethod = true
                                     scope.launch {
                                         val result = withContext(Dispatchers.IO) {
-                                            RemoteBillingRepository.addSimulatedPaymentMethod(simulatedBrand, simulatedLastFour)
+                                            RemoteBillingRepository.addPaymentToken(providerTokenRef)
                                         }
                                         if (result is com.yachiqo.spotgo.data.repository.RemotePaymentMethodMutationResult.Success) {
                                             val refreshed = withContext(Dispatchers.IO) {
@@ -269,8 +367,11 @@ fun PaymentsScreen(
                                             methods = (refreshed as? RemotePaymentMethodsResult.Success)?.methods
                                                 ?: (methods.orEmpty() + result.method)
                                             showAddMethodDialog = false
-                                            simulatedBrand = "visa"
-                                            simulatedLastFour = "4242"
+                                            // The transient form is discarded the moment the token is saved.
+                                            cardForm = CardFormInput("", "", "", "")
+                                            cardNumberField = TextFieldValue("")
+                                            cardExpirationField = TextFieldValue("")
+                                            cardError = null
                                             onNotice(methodAddedMessage)
                                         } else {
                                             onNotice(methodSaveFailedMessage)
@@ -284,7 +385,13 @@ fun PaymentsScreen(
                             }
                         },
                         dismissButton = {
-                            TextButton(enabled = !addingMethod, onClick = { showAddMethodDialog = false }) {
+                            TextButton(enabled = !addingMethod, onClick = {
+                                showAddMethodDialog = false
+                                cardForm = CardFormInput("", "", "", "")
+                                cardNumberField = TextFieldValue("")
+                                cardExpirationField = TextFieldValue("")
+                                cardError = null
+                            }) {
                                 Text(stringResource(R.string.payments_cancel))
                             }
                         },
